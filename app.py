@@ -1,7 +1,6 @@
 import urllib.parse
 import requests
 import streamlit as st
-from geopy.geocoders import Nominatim
 
 st.set_page_config(
     page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
@@ -13,70 +12,91 @@ st.caption("Minh bạch - An toàn - Tự động tính cước chuẩn xác")
 st.divider()
 
 
-# Hàm tính số km lái xe thực tế giữa 2 địa điểm
-def tinh_so_km_thuc_te(dia_chi_don, dia_chi_den):
+# 1. Hàm lấy tọa độ thông minh (Photon API - Fuzzy Search cực mạnh cho địa danh VN)
+def lay_toa_do_thong_minh(dia_chi):
+    if not dia_chi or dia_chi.strip() == "":
+        return None, None
+
+    # Làm sạch chuỗi tìm kiếm
+    dia_chi_sach = dia_chi.replace("-", " ").strip()
+
+    # Thử tìm kiếm với Photon API
     try:
-        geolocator = Nominatim(user_agent="doi_xe_om_app")
+        url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(dia_chi_sach)}&limit=1"
+        res = requests.get(
+            url, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
+        ).json()
+        if res.get("features") and len(res["features"]) > 0:
+            coords = res["features"][0]["geometry"]["coordinates"]
+            return coords[1], coords[0]  # Tra ve (lat, lon)
+    except Exception:
+        pass
 
-        # Lấy tọa độ điểm đón
-        loc1 = geolocator.geocode(f"{dia_chi_don}, Việt Nam")
-        # Lấy tọa độ điểm đến
-        loc2 = geolocator.geocode(f"{dia_chi_den}, Việt Nam")
+    # Nếu chưa tìm thấy, thử thêm chữ "Việt Nam" để định vị chuẩn hơn
+    try:
+        url_vn = f"https://photon.komoot.io/api/?q={urllib.parse.quote(dia_chi_sach + ' Việt Nam')}&limit=1"
+        res_vn = requests.get(
+            url_vn, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
+        ).json()
+        if res_vn.get("features") and len(res_vn["features"]) > 0:
+            coords = res_vn["features"][0]["geometry"]["coordinates"]
+            return coords[1], coords[0]
+    except Exception:
+        pass
 
-        if loc1 and loc2:
-            # Gọi API OSRM đo quãng đường lái xe thực tế
-            url = f"http://router.project-osrm.org/route/v1/driving/{loc1.longitude},{loc1.latitude};{loc2.longitude},{loc2.latitude}?overview=false"
-            res = requests.get(url, timeout=5).json()
+    return None, None
 
-            if "routes" in res and len(res["routes"]) > 0:
-                met = res["routes"][0]["distance"]
-                km = met / 1000.0
-                return round(km, 2)
+
+# 2. Hàm tính khoảng cách lái xe thực tế (OSRM Routing)
+def tinh_so_km_thuc_te(don_lat, don_lon, den_lat, den_lon):
+    try:
+        url = f"http://router.project-osrm.org/route/v1/driving/{don_lon},{don_lat};{den_lon},{den_lat}?overview=false"
+        res = requests.get(url, timeout=5).json()
+        if "routes" in res and len(res["routes"]) > 0:
+            met = res["routes"][0]["distance"]
+            return round(met / 1000.0, 2)
     except Exception:
         pass
     return None
 
 
-# 1. Nhập điểm đón & điểm đến
+# 3. Giao diện nhập liệu
 col_don, col_den = st.columns(2)
 
 with col_don:
     diem_don = st.text_input(
         "📍 Điểm đón của bạn:",
-        value="Vị trí hiện tại",
-        placeholder="Nhập địa chỉ đón...",
+        placeholder="Ví dụ: Công Ty Taekwang Vina Long Bình...",
     )
 
 with col_den:
     diem_den = st.text_input(
-        "🏁 Điểm đến:", placeholder="Ví dụ: Chợ Long Xuyên / Bệnh viện..."
+        "🏁 Điểm đến:", placeholder="Ví dụ: Nhà Thờ Giáo Xứ Bùi Đệ..."
     )
 
 so_km = 0.0
-gia = 0
 
-# 2. Tự động tính toán khi có đủ 2 điểm
-if diem_don and diem_den and diem_don != "Vị trí hiện tại":
-    with st.spinner("⏳ Đang đo quãng đường thực tế trên bản đồ..."):
-        km_co_dinh = tinh_so_km_thuc_te(diem_don, diem_den)
+# 4. Xử lý tính quãng đường & cước phí
+if diem_don and diem_den:
+    with st.spinner("⏳ Đang định vị địa danh & đo quãng đường thực tế..."):
+        lat1, lon1 = lay_toa_do_thong_minh(diem_don)
+        lat2, lon2 = lay_toa_do_thong_minh(diem_den)
 
-        if km_co_dinh:
-            so_km = km_co_dinh
-            st.success(
-                f"📏 Quãng đường lái xe thực tế trên bản đồ: **{so_km} km**"
-            )
+        if lat1 and lat2:
+            km_lay_duoc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
+            if km_lay_duoc:
+                so_km = km_lay_duoc
+                st.success(
+                    f"✅ Đã tìm thấy vị trí! Quãng đường thực tế: **{so_km} km**"
+                )
+            else:
+                st.warning("⚠️ Không tính được tuyến đường lái xe, vui lòng nhập km thủ công:")
+                so_km = st.number_input("📏 Nhập km thủ công:", min_value=0.5, value=5.0, step=0.5)
         else:
-            st.warning(
-                "⚠️ Không tìm thấy tọa độ chính xác, vui lòng nhập số km ước tính bên dưới:"
-            )
+            st.warning("⚠️ Không tìm thấy tọa độ chính xác, vui lòng nhập số km ước tính bên dưới:")
             so_km = st.number_input("📏 Nhập km thủ công:", min_value=0.5, value=5.0, step=0.5)
-else:
-    if diem_den:
-        so_km = st.number_input(
-            "📏 Quãng đường ước tính (km):", min_value=0.5, value=5.0, step=0.5
-        )
 
-# 3. Tính cước phí theo công thức: Số km * 2.000 VNĐ
+# Tính cước đồng giá 2.000 VNĐ/km
 DONG_GIA = 2000
 gia = so_km * DONG_GIA
 
@@ -86,8 +106,8 @@ st.metric(
 
 st.divider()
 
-# 4. Nút bấm kết nối Hotline & Zalo
-HOTLINE = "0901234567"  # Ní thay SĐT hotline vào đây
+# 5. Nút bấm đặt xe & Google Maps
+HOTLINE = "0901234567"  # Ní thay SĐT hotline thực tế vào đây
 
 if diem_den:
     don_encoded = urllib.parse.quote(diem_don)
@@ -99,7 +119,7 @@ if diem_den:
     )
 
     noi_dung_zalo = urllib.parse.quote(
-        f"Chào Đội Xe, tôi muốn đặt xe:\n- Đón: {diem_don}\n- Đến: {diem_den}\n- Quãng đường: {so_km}km\n- Cước phí dự kiến: {gia:,.0f}đ"
+        f"Chào Đội Xe, tôi muốn đặt xe:\n- Đón: {diem_don}\n- Đến: {diem_den}\n- Quãng đường: {so_km}km\n- Cước phí: {gia:,.0f}đ"
     )
     zalo_url = f"https://zalo.me/{HOTLINE}?text={noi_dung_zalo}"
 
