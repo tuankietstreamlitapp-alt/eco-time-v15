@@ -18,42 +18,20 @@ st.markdown(
 )
 
 
-# 1. Hàm tìm kiếm thông minh: Tự động tách lọc địa chỉ Google Maps
+# 1. Hàm tìm kiếm chuẩn xác: Giữ nguyên từ khóa, khóa vùng Việt Nam/Đồng Nai
 def lay_danh_sach_goi_y(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return []
 
-    # Làm sạch chuỗi, tách các phần ngăn cách bằng dấu phẩy hoặc dấu gạch đứng
-    parts = [p.strip() for p in dia_chi.replace("|", ",").split(",")]
-
-    query_parts = []
-    for p in parts:
-        p_lower = p.lower()
-        # Tự động loại bỏ tên quán/chi nhánh riêng lẻ để tập trung vào số nhà và tên đường
-        if any(
-            tu_khoa in p_lower
-            for tu_khoa in [
-                "bida",
-                "quán",
-                "công ty",
-                "cn",
-                "việt nam",
-                "chi nhánh",
-            ]
-        ):
-            # Nếu đoạn đó có chứa số (ví dụ số nhà) thì vẫn giữ lại
-            if not any(so in p for so in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]):
-                continue
-        query_parts.append(p)
-
-    clean_query = ", ".join(query_parts) if query_parts else dia_chi
+    # Giữ nguyên vẹn những gì ní gõ, tự động gán thêm Đồng Nai để khoanh vùng
+    clean_query = dia_chi.strip()
     if "đồng nai" not in clean_query.lower():
-        clean_query += ", Đồng Nai"
+        clean_query += ", Đồng Nai, Việt Nam"
 
     danh_sach = []
     try:
-        # Sử dụng Nominatim API của OpenStreetMap (xử lý địa chỉ chi tiết cực tốt)
-        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_query)}&format=json&limit=5"
+        # Dùng Nominatim giới hạn phạm vi quốc gia Việt Nam (countrycodes=vn) tránh lệch tỉnh
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_query)}&format=json&countrycodes=vn&limit=5"
         res = requests.get(
             url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=5
         ).json()
@@ -63,14 +41,13 @@ def lay_danh_sach_goi_y(dia_chi):
                 display_name = item.get("display_name", "")
                 lat = float(item.get("lat"))
                 lon = float(item.get("lon"))
-                # Tránh trùng lặp
                 ket_qua = {"label": display_name, "lat": lat, "lon": lon}
                 if ket_qua not in danh_sach:
                     danh_sach.append(ket_qua)
     except Exception:
         pass
 
-    # Fallback sang Photon nếu Nominatim cần hỗ trợ thêm
+    # Fallback sang Photon nếu cần quét bổ sung
     if not danh_sach:
         try:
             url_photon = f"https://photon.komoot.io/api/?q={urllib.parse.quote(clean_query)}&limit=5"
