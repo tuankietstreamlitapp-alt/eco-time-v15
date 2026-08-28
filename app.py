@@ -1,126 +1,116 @@
-import math, time
 import streamlit as st
-from streamlit_js_eval import get_geolocation
+import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Xeom4560 GPS TEST", page_icon="📡", layout="centered")
+st.set_page_config(
+    page_title="Test WatchPosition Realtime", page_icon="📡", layout="centered"
+)
 
-DONG_GIA = 5000
-POLL_SECONDS = 2
+st.markdown(
+    """
+    <div style="text-align: center; background: linear-gradient(135deg, #d4edda, #c3e6cb); padding: 15px; border-radius: 12px; border: 1px solid #b8daff;">
+        <h2 style="color: #155724; margin-bottom: 5px; font-weight: bold;">📡 TEST GPS WATCHPOSITION REALTIME</h2>
+        <p style="color: #155724; font-size: 15px; font-weight: 500; margin: 0;">Kiểm tra luồng GPS liên tục bằng JavaScript gốc</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-for k, v in {
-    "active": False, "total_m": 0.0, "count": 0,
-    "last_lat": None, "last_lon": None, "last_ts": None,
-    "accuracy": None, "last_delta": 0.0, "status": "Chưa bắt đầu",
-}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+st.write("")
 
-def distance_m(a,b,c,d):
-    R=6371000
-    p1,p2=math.radians(a),math.radians(c)
-    dp=math.radians(c-a); dl=math.radians(d-b)
-    x=math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
-    return 2*R*math.atan2(math.sqrt(x), math.sqrt(max(0,1-x)))
+# Đoạn HTML kết hợp JavaScript chạy trực tiếp watchPosition trên trình duyệt điện thoại
+html_code = """
+<div style="font-family: sans-serif; padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #28a745; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <h3 style="color: #28a745; margin-top: 0;">📍 Trạng thái GPS Trực Tiếp</h3>
+    <p style="font-size: 16px; margin: 8px 0;"><b>Trạng thái:</b> <span id="status" style="color: #d9534f; font-weight: bold;">Đang kết nối GPS...</span></p>
+    <p style="font-size: 16px; margin: 8px 0;"><b>Latitude:</b> <span id="lat" style="font-family: monospace; font-size: 18px; color: #0275d8;">--</span></p>
+    <p style="font-size: 16px; margin: 8px 0;"><b>Longitude:</b> <span id="lon" style="font-family: monospace; font-size: 18px; color: #0275d8;">--</span></p>
+    <p style="font-size: 16px; margin: 8px 0;"><b>Accuracy (Độ chính xác):</b> <span id="acc">--</span> m</p>
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+    <p style="font-size: 16px; margin: 8px 0;"><b>Đoạn vừa dịch chuyển:</b> <span id="delta" style="color: #f0ad4e; font-weight: bold;">0.00</span> m</p>
+    <p style="font-size: 18px; margin: 8px 0;"><b>🔥 Tổng quãng đường:</b> <span id="total" style="color: #d9534f; font-weight: bold; font-size: 22px;">0.00</span> m</p>
+    <p style="font-size: 16px; margin: 8px 0;"><b>💰 Cước tạm tính (5k/km):</b> <span id="price" style="color: #28a745; font-weight: bold; font-size: 20px;">0 VNĐ</span></p>
+</div>
 
-def reset():
-    st.session_state.active=False
-    st.session_state.total_m=0.0
-    st.session_state.count=0
-    st.session_state.last_lat=None
-    st.session_state.last_lon=None
-    st.session_state.last_ts=None
-    st.session_state.accuracy=None
-    st.session_state.last_delta=0.0
-    st.session_state.status="Đã reset"
+<script>
+// Hàm tính khoảng cách Haversine chuẩn xác giữa 2 tọa độ (mét)
+function calcCrow(lat1, lon1, lat2, lon2) {
+    var R = 6371000; // Bán kính trái đất tính bằng mét
+    var dLat = toRad(lat2 - lat1);
+    var dLon = toRad(lon2 - lon1);
+    var lat1_rad = toRad(lat1);
+    var lat2_rad = toRad(lat2);
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1_rad) * Math.cos(lat2_rad);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
 
-def process(loc):
-    if not st.session_state.active: return
-    if not isinstance(loc,dict):
-        st.session_state.status="Không nhận được response GPS"; return
-    if "error" in loc:
-        e=loc.get("error") or {}
-        st.session_state.status=f"GPS ERROR {e.get('code','?')}: {e.get('message','')}"
-        return
-    c=loc.get("coords") or {}
-    lat,lon=c.get("latitude"),c.get("longitude")
-    if lat is None or lon is None:
-        st.session_state.status="Response có nhưng thiếu tọa độ"; return
-    lat=float(lat); lon=float(lon)
-    acc=c.get("accuracy")
-    st.session_state.accuracy=float(acc) if acc is not None else None
-    ts=float(loc.get("timestamp",time.time()*1000))/1000
-    st.session_state.count += 1
+function toRad(Value) {
+    return Value * Math.PI / 180;
+}
 
-    if st.session_state.last_lat is None:
-        st.session_state.last_lat,st.session_state.last_lon,st.session_state.last_ts=lat,lon,ts
-        st.session_state.last_delta=0
-        st.session_state.status="ĐÃ NHẬN GPS — lấy mốc đầu tiên"
-        return
+let lastLat = null;
+let lastLon = null;
+let totalMeters = 0;
+let watchId = null;
 
-    d=distance_m(st.session_state.last_lat,st.session_state.last_lon,lat,lon)
-    dt=max(0.5,ts-st.session_state.last_ts)
-    speed=d/dt*3.6
-    # Diagnostic: update reference every sample; don't hide small movement.
-    st.session_state.last_lat,st.session_state.last_lon,st.session_state.last_ts=lat,lon,ts
-    st.session_state.last_delta=d
-    if d < 0.5:
-        st.session_state.status=f"GPS OK • +{d:.2f} m (chuyển động rất nhỏ)"
-        return
-    if speed > 250:
-        st.session_state.status=f"GPS jump • {d:.1f} m / {speed:.0f} km/h — không cộng"
-        return
-    st.session_state.total_m += d
-    st.session_state.status=f"GPS OK • +{d:.2f} m • {speed:.1f} km/h"
+if ("geolocation" in navigator) {
+    document.getElementById("status").innerText = "Đang xin quyền GPS...";
+    
+    watchId = navigator.geolocation.watchPosition(
+        function(position) {
+            let lat = position.coords.latitude;
+            let lon = position.coords.longitude;
+            let acc = position.coords.accuracy;
 
-st.title("📡 Xeom4560 — GPS TEST")
-st.caption("Bản chẩn đoán độc lập — KHÔNG dùng cho tính tiền khách thật.")
+            document.getElementById("lat").innerText = lat.toFixed(7);
+            document.getElementById("lon").innerText = lon.toFixed(7);
+            document.getElementById("acc").innerText = acc.toFixed(1);
+            document.getElementById("status").innerText = "Đang stream GPS thời gian thực ✅";
+            document.getElementById("status").style.color = "#28a745";
 
-@st.fragment(run_every=POLL_SECONDS)
-def tracker():
-    try:
-        loc=get_geolocation()
-    except Exception as e:
-        loc={"error":{"code":"EXCEPTION","message":str(e)}}
-    if st.session_state.active:
-        process(loc)
+            if (lastLat !== null && lastLon !== null) {
+                let d = calcCrow(lastLat, lastLon, lat, lon);
+                // Lọc nhiễu: Nếu dịch chuyển dưới 0.5m hoặc nhảy cóc quá 100m trong 1 nhịp thì bỏ qua
+                if (d >= 0.5 && d < 100) {
+                    totalMeters += d;
+                    document.getElementById("delta").innerText = d.toFixed(2);
+                    document.getElementById("total").innerText = totalMeters.toFixed(2);
+                    
+                    let km = totalMeters / 1000.0;
+                    let price = km * 5000;
+                    document.getElementById("price").innerText = price.toLocaleString('vi-VN', {maximumFractionDigits: 0}) + " VNĐ";
+                    
+                    lastLat = lat;
+                    lastLon = lon;
+                } else {
+                    document.getElementById("delta").innerText = "0.00 (lọc nhiễu)";
+                }
+            } else {
+                lastLat = lat;
+                lastLon = lon;
+                document.getElementById("status").innerText = "Đã khóa mốc GPS đầu tiên! Hãy di chuyển.";
+            }
+        },
+        function(error) {
+            document.getElementById("status").innerText = "Lỗi GPS: " + error.message;
+            document.getElementById("status").style.color = "#d9534f";
+        },
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 15000
+        }
+    );
+} else {
+    document.getElementById("status").innerText = "Trình duyệt không hỗ trợ GPS!";
+}
+</script>
+"""
 
-    st.subheader("📍 GPS trực tiếp")
-    c=loc.get("coords") if isinstance(loc,dict) else None
-    if c:
-        a,b=st.columns(2)
-        a.metric("Latitude",f"{float(c['latitude']):.7f}")
-        b.metric("Longitude",f"{float(c['longitude']):.7f}")
-        a,b=st.columns(2)
-        b.metric("Accuracy",f"{float(c['accuracy']):.1f} m" if c.get("accuracy") is not None else "N/A")
-        a.metric("Timestamp",str(loc.get("timestamp","N/A")))
-    elif isinstance(loc,dict) and "error" in loc:
-        e=loc["error"]
-        st.error(f"GPS ERROR: {e.get('code','?')} — {e.get('message','')}")
-    else:
-        st.info("Chưa nhận được tọa độ GPS.")
+# Render đoạn HTML/JS lên app Streamlit với chiều cao vừa vặn
+components.html(html_code, height=360)
 
-    a,b,c=st.columns(3)
-    a.metric("Số lần nhận",st.session_state.count)
-    b.metric("Đoạn vừa nhận",f"{st.session_state.last_delta:.2f} m")
-    c.metric("Tổng di chuyển",f"{st.session_state.total_m:.2f} m")
-    st.write("**Trạng thái:**",st.session_state.status)
-    km=st.session_state.total_m/1000
-    st.markdown(f"### 💰 Cước TEST: **{km*DONG_GIA:,.2f} VNĐ**")
-
-tracker()
-
-if not st.session_state.active:
-    if st.button("🟢 BẮT ĐẦU GPS TEST",use_container_width=True,type="primary"):
-        st.session_state.active=True
-        st.session_state.status="Đang chờ GPS..."
-        st.rerun()
-else:
-    if st.button("🔴 DỪNG GPS TEST",use_container_width=True,type="primary"):
-        st.session_state.active=False
-        st.session_state.status="Đã dừng"
-        st.rerun()
-if st.button("♻️ RESET",use_container_width=True):
-    reset(); st.rerun()
-
-st.divider()
-st.info("Test: Bấm BẮT ĐẦU → đứng yên 20–30 giây → chạy 100–200 m → gửi ảnh kết quả. Quan trọng nhất là Latitude, Longitude, Timestamp và Số lần nhận.")
+st.info(
+    "💡 **Cách test:** Ní mở app này trên điện thoại, bấm 'Cho phép' quyền vị trí, sau đó cầm điện thoại đi bộ hoặc chạy xe ra đường 50–100m. Nhìn xem thông số **Latitude**, **Longitude** và **Tổng quãng đường** có tự động nhảy số liên tục không nhé!"
+)
