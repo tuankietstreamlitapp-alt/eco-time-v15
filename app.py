@@ -386,7 +386,7 @@ elif st.session_state.trip_active:
         </div>
         
         <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
-            💳 KẾT THÚC & ĐẨY QUA DATA NGAY
+            💳 KẾT THÚC CHUYẾN XE & ĐẨY QUA DATA
         </button>
         <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 10px;">GPS: Đang theo dõi & Cache Active...</div>
     </div>
@@ -451,52 +451,12 @@ elif st.session_state.trip_active:
         let baseUrl = window.location.href.split('?')[0];
         try {{ if (window.parent && window.parent.location) {{ baseUrl = window.parent.location.href.split('?')[0]; }} }} catch(e) {{}}
         
-        // Truyền params Name và Phone vào URL để xử lý bên Streamlit
         let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}";
         try {{ window.top.location.href = targetUrl; }} catch(e) {{ window.location.href = targetUrl; }}
     }}
     </script>
     """
-    components.html(html_live_tracker, height=220)
-
-    st.write("")
-    if st.button("💳 KẾT THÚC CHUYẾN XE (TRÊN HỆ THỐNG)", type="primary", use_container_width=True):
-        st.session_state.trip_active = False
-        st.session_state.trip_ended_at = time.time()
-        st.session_state.trip_status = "Đã hoàn thành"
-        
-        start_ts = st.session_state.trip_started_at
-        start_time_str = get_vn_time(start_ts)
-        end_time_str = get_vn_time(st.session_state.trip_ended_at)
-        
-        time_diff = max(0, int(st.session_state.trip_ended_at - start_ts))
-        hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
-        total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
-
-        km_val = round(st.session_state.trip_total_m / 1000.0, 2)
-        fare_val = round(km_val * DONG_GIA)
-        trip_id = st.session_state.trip_id
-        
-        stt = get_next_stt("DATA_4567")
-        row_data = [
-            stt,
-            trip_id,
-            start_time_str,
-            end_time_str,
-            total_time_str,
-            st.session_state.get("cust_name", "Khách vãng lai"),
-            st.session_state.get("cust_phone", ""),
-            fare_val,
-            st.session_state['user_name'],
-            DONG_GIA,
-            km_val,
-            fare_val,
-            "HOÀN THÀNH CUỐC XE"
-        ]
-        append_row_to_sheet("DATA_4567", row_data)
-        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-        st.session_state["show_balloons"] = True
-        st.rerun()
+    components.html(html_live_tracker, height=200)
 
 # ============================================================
 # TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE
@@ -533,7 +493,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
         st.rerun()
 
 # ============================================================
-# KHU VỰC XEM BÁO CÁO
+# KHU VỰC XEM BÁO CÁO (ĐÃ ẨN CỘT INDEX MẶC ĐỊNH)
 # ============================================================
 st.markdown("---")
 with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", expanded=False):
@@ -542,14 +502,14 @@ with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", e
     with tab_rep1:
         _, data_records = get_worksheet_data("DATA_4567")
         if data_records:
-            st.dataframe(pd.DataFrame(data_records), use_container_width=True)
+            st.dataframe(pd.DataFrame(data_records), use_container_width=True, hide_index=True)
         else:
             st.warning("Chưa có dữ liệu trong bảng `DATA_4567`.")
             
     with tab_rep2:
         _, cache_records = get_worksheet_data("CACHE_4567")
         if cache_records:
-            st.dataframe(pd.DataFrame(cache_records), use_container_width=True)
+            st.dataframe(pd.DataFrame(cache_records), use_container_width=True, hide_index=True)
         else:
             st.success("Hiện CACHE đang trống (đã được dọn dẹp).")
 
