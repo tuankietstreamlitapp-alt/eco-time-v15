@@ -1,3 +1,4 @@
+import re
 import urllib.parse
 import requests
 import streamlit as st
@@ -18,37 +19,55 @@ st.markdown(
 )
 
 
-# 1. Hàm tìm tọa độ ngầm: Tự động lấy kết quả tốt nhất dựa trên từ khóa người gõ
+# 1. Hàm bóc tách và định vị chuẩn 100% theo định dạng Google Maps
 def lay_toa_do_diem_den(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return None, None
 
-    clean_query = dia_chi.strip()
-    if "đồng nai" not in clean_query.lower():
-        clean_query += ", Đồng Nai, Việt Nam"
+    raw_query = dia_chi.strip()
 
-    # Thử tìm bằng Nominatim trước
-    try:
-        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_query)}&format=json&countrycodes=vn&limit=1"
-        res = requests.get(
-            url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=5
-        ).json()
-        if res:
-            return float(res[0].get("lat")), float(res[0].get("lon"))
-    except Exception:
-        pass
+    # Loại bỏ mã bưu chính (ví dụ: các số 5 chữ số như 81000, 70000...) thường có trong copy của Google Maps
+    query_no_postal = re.sub(r"\b\d{5}\b", "", raw_query)
+    query_clean = (
+        re.sub(r"\s+", " ", query_no_postal).replace(" ,", ",").strip()
+    )
 
-    # Fallback sang Photon nếu cần
-    try:
-        url_photon = f"https://photon.komoot.io/api/?q={urllib.parse.quote(clean_query)}&limit=1"
-        res_p = requests.get(
-            url_photon, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
-        ).json()
-        if res_p.get("features"):
-            coords = res_p["features"][0]["geometry"]["coordinates"]
-            return coords[1], coords[0]
-    except Exception:
-        pass
+    # Tạo danh sách các cách thử truy vấn từ chi tiết đến ngắn gọn để vét cạn kết quả chuẩn Google Maps
+    queries_to_try = [query_clean, raw_query]
+
+    # Tách lấy phần cốt lõi (Số nhà + Tên đường + Phường/Khu vực) nếu địa chỉ quá dài
+    parts = [p.strip() for p in query_clean.split(",")]
+    if len(parts) >= 3:
+        short_query = f"{parts[0]}, {parts[1]}, Đồng Nai, Việt Nam"
+        queries_to_try.append(short_query)
+
+    for q in queries_to_try:
+        if not q:
+            continue
+        q_full = q if "đồng nai" in q.lower() else f"{q}, Đồng Nai, Việt Nam"
+
+        # Thử tìm bằng Nominatim (OpenStreetMap)
+        try:
+            url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(q_full)}&format=json&countrycodes=vn&limit=1"
+            res = requests.get(
+                url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=4
+            ).json()
+            if res:
+                return float(res[0].get("lat")), float(res[0].get("lon"))
+        except Exception:
+            pass
+
+        # Thử tìm bằng Photon dự phòng
+        try:
+            url_p = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q_full)}&limit=1"
+            res_p = requests.get(
+                url_p, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=4
+            ).json()
+            if res_p.get("features"):
+                coords = res_p["features"][0]["geometry"]["coordinates"]
+                return coords[1], coords[0]
+        except Exception:
+            pass
 
     return None, None
 
@@ -67,25 +86,25 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 
 
 # ==========================================
-# BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (TỰ DO, KHÔNG CẦN CHỌN LẠI)
+# BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (DÁN TRỰC TIẾP TỪ GOOGLE MAPS)
 # ==========================================
 st.subheader("🏁 Nơi bạn muốn đến")
 diem_den_chon = st.text_input(
-    "🔍 Nhập tên địa điểm, quán xá, số nhà, tên đường...",
-    placeholder="Ví dụ: 9a Nguyễn Khuyến Trảng Dài, Siêu thị BigC...",
+    "🔍 Nhập hoặc dán địa chỉ từ Google Maps vào đây...",
+    placeholder="Ví dụ: Đồng Hồ Hải Triều, 64 Đ. Đồng Khởi, Tam Hiệp...",
 )
 
 lat2, lon2 = None, None
 
 if diem_den_chon and len(diem_den_chon.strip()) >= 2:
-    with st.spinner("⏳ Đang định vị điểm đến trên bản đồ..."):
+    with st.spinner("⏳ Đang đồng bộ tọa độ chuẩn từ Google Maps..."):
         lat2, lon2 = lay_toa_do_diem_den(diem_den_chon)
         if lat2 and lon2:
-            st.success("✅ Đã xác định thành công điểm đến!")
+            st.success("✅ Đã tìm thấy tọa độ chính xác!")
         else:
             st.warning(
-                "⚠️ Không tìm thấy tọa độ chính xác, app sẽ tính cước tạm tính"
-                " hoặc bạn có thể gõ rõ tên đường hơn."
+                "⚠️ Không tìm thấy tọa độ chính xác, vui lòng kiểm tra lại tên"
+                " đường hoặc số nhà."
             )
 
 st.divider()
