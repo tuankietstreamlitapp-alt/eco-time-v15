@@ -364,24 +364,25 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
         st.rerun()
 
 # ============================================================
+# ============================================================
 # KHU VỰC XEM BÁO CÁO THỜI GIAN THỰC TỪ GOOGLE SHEETS
 # ============================================================
 st.markdown("---")
 with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", expanded=False):
-    st.info("Dữ liệu được tải trực tiếp từ Tab `DATA_4567` và `CACHE_4567` trên trang tính của ní[span_10](start_span)[span_10](end_span).")
+    st.info("Dữ liệu được tải trực tiếp từ Tab `DATA_4567` và `CACHE_4567` trên trang tính của ní.")
     
     tab_rep1, tab_rep2 = st.tabs(["📦 Dữ liệu DATA_4567", "⚡ Bộ nhớ CACHE_4567"])
     
     with tab_rep1:
-        _, data_records = get_worksheet_data("DATA_4567")[span_11](start_span)[span_11](end_span)
+        _, data_records = get_worksheet_data("DATA_4567")
         if data_records:
             df_data = pd.DataFrame(data_records)
             st.dataframe(df_data, use_container_width=True)
         else:
-            st.warning("Chưa có dữ liệu trong bảng `DATA_4567`[span_12](start_span)[span_12](end_span).")
+            st.warning("Chưa có dữ liệu trong bảng `DATA_4567`.")
             
     with tab_rep2:
-        _, cache_records = get_worksheet_data("CACHE_4567")[span_13](start_span)[span_13](end_span)
+        _, cache_records = get_worksheet_data("CACHE_4567")
         if cache_records:
             df_cache = pd.DataFrame(cache_records)
             st.dataframe(df_cache, use_container_width=True)
@@ -390,7 +391,7 @@ with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", e
                 total_rev = pd.to_numeric(df_cache["THÀNH TIỀN"], errors='coerce').sum()
                 st.metric("Tổng doanh thu lưu trong Cache", f"{total_rev:,.0f} VNĐ")
         else:
-            st.warning("Chưa có dữ liệu ghi nhận trong `CACHE_4567`[span_14](start_span)[span_14](end_span).")
+            st.warning("Chưa có dữ liệu ghi nhận trong `CACHE_4567`.")
 
 # Đăng xuất
 st.write("")
