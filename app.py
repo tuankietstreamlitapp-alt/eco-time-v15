@@ -1,4 +1,5 @@
 import math
+import time
 import urllib.parse
 import requests
 import streamlit as st
@@ -210,7 +211,7 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         dist_val = 0.0
 
     st.session_state.trip_active = False
-    st.session_state.trip_ended_at = __import__("time").time()
+    st.session_state.trip_ended_at = time.time()
     st.session_state.trip_total_m = dist_val
     st.session_state.trip_status = "Chờ thanh toán"
     st.query_params.clear()
@@ -238,7 +239,7 @@ def reset_trip():
 def start_trip():
     reset_trip()
     st.session_state.trip_active = True
-    st.session_state.trip_started_at = __import__("time").time()
+    st.session_state.trip_started_at = time.time()
     st.session_state.trip_status = "Đang chạy"
 
 def format_km(total_m):
@@ -249,7 +250,7 @@ def format_fare(total_m):
 
 # ============================================================
 # GIAO DIỆN ĐIỀU KHIỂN & ĐO HÀNH TRÌNH GPS
-# ="""
+# ============================================================
 col_title, col_refresh = st.columns([7, 1], vertical_alignment="center")
 with col_title:
     st.markdown('<div class="section-title" style="margin-bottom:0;">🏁 Điều phối cuốc xe</div>', unsafe_allow_html=True)
@@ -301,7 +302,7 @@ elif st.session_state.trip_active:
     )
 
     html_live_tracker = f"""
-    <div style="font-family: inherit; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+    <div style="font-family: sans-serif; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
         <div style="background: linear-gradient(135deg, #f0fdf4 0%, #e6f4ed 100%); border: 1px solid #bbf7d0; border-radius: 14px; padding: 16px; margin-bottom: 14px;">
             <div style="color: #166534; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;">Cước phí tạm tính</div>
             <div id="price" style="color: #0f172a; font-size: 34px; font-weight: 900; letter-spacing: -1px; margin: 4px 0;">0 VNĐ</div>
@@ -420,12 +421,21 @@ elif st.session_state.trip_active:
         document.getElementById("debug_acc").innerText = "Trình duyệt không hỗ trợ GPS";
     }}
 
+    // SỬA LỖI ĐIỀU HƯỚNG BẰNG THẺ LINK TARGET _TOP
     function stopTrip() {{
         localStorage.removeItem("xeom_total_meters");
         if (wakeLock !== null) {{
             wakeLock.release().catch(() => {{}});
         }}
-        window.parent.location.href = window.parent.location.pathname + "?action=stop&dist=" + totalMeters;
+        
+        let parentUrl = document.referrer ? document.referrer.split('?')[0] : window.location.href.split('?')[0];
+        let targetUrl = parentUrl + "?action=stop&dist=" + totalMeters;
+        
+        let a = document.createElement("a");
+        a.href = targetUrl;
+        a.target = "_top";
+        document.body.appendChild(a);
+        a.click();
     }}
     </script>
     """
@@ -436,18 +446,21 @@ if not st.session_state.trip_active and st.session_state.trip_ended_at:
     km = format_km(st.session_state.trip_total_m)
     fare = format_fare(st.session_state.trip_total_m)
 
-    st.markdown(
+    # NHÚNG BẮN PHÁO HOA CHUẨN
+    components.html(
         """
         <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
         <script>
-            confetti({
-                particleCount: 100,
-                spread: 60,
-                origin: { y: 0.6 }
-            });
+            setTimeout(() => {
+                confetti({
+                    particleCount: 120,
+                    spread: 80,
+                    origin: { y: 0.5 }
+                });
+            }, 300);
         </script>
         """,
-        unsafe_allow_html=True,
+        height=1,
     )
 
     st.markdown(
