@@ -8,12 +8,6 @@ st.set_page_config(
     page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
 )
 
-# Nút F5 / làm mới dữ liệu ở đầu trang.
-top_left, top_right = st.columns([1, 8])
-with top_left:
-    if st.button("🔄 F5", help="Tải lại trang và lấy lại dữ liệu vị trí/điểm đến"):
-        st.rerun()
-
 st.markdown(
     """
     <div style="text-align: center; background: linear-gradient(135deg, #fff3cd, #ffeeba); padding: 15px; border-radius: 12px; border: 1px solid #ffe8a1;">
@@ -200,7 +194,17 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 # ==========================================
 # BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (DÁN TRỰC TIẾP TỪ GOOGLE MAPS)
 # ==========================================
-st.subheader("🏁 Nơi bạn muốn đến")
+col_title, col_refresh = st.columns([8, 1])
+with col_title:
+    st.subheader("🏁 Nơi bạn muốn đến")
+with col_refresh:
+    if st.button(
+        "🔄 F5",
+        help="Tải lại trang và lấy lại dữ liệu vị trí/điểm đến",
+        use_container_width=True,
+    ):
+        st.rerun()
+
 diem_den_chon = st.text_input(
     "🔍 Nhập hoặc dán địa chỉ từ Google Maps vào đây...",
     placeholder="Tên địa điểm, địa chỉ hoặc dán link Google Maps...",
