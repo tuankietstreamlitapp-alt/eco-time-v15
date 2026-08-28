@@ -30,28 +30,53 @@ st.markdown(
 # Vì vậy app cho phép dán link Google Maps để lấy đúng vị trí người dùng đã chọn.
 
 def _extract_coords_from_maps_url(value):
+    """Lấy tọa độ từ Google Maps URL, kể cả link rút gọn maps.app.goo.gl."""
     if not value:
         return None, None
 
     s = value.strip()
 
-    m = re.search(r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)', s)
-    if m:
-        return float(m.group(1)), float(m.group(2))
-
-    m = re.search(r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)', s)
-    if m:
-        return float(m.group(1)), float(m.group(2))
-
-    for key in ("query", "destination", "center"):
-        m = re.search(
-            rf'(?:[?&]{key}=)(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)',
-            s,
-            re.I,
-        )
+    def extract(raw):
+        m = re.search(r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)', raw)
         if m:
             return float(m.group(1)), float(m.group(2))
 
+        m = re.search(r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)', raw)
+        if m:
+            return float(m.group(1)), float(m.group(2))
+
+        for key in ("query", "destination", "center"):
+            m = re.search(
+                rf'(?:[?&]{key}=)(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)',
+                raw,
+                re.I,
+            )
+            if m:
+                return float(m.group(1)), float(m.group(2))
+
+        return None, None
+
+    lat, lon = extract(s)
+    if lat is not None and lon is not None:
+        return lat, lon
+
+    # Google Maps thường cho link chia sẻ dạng https://maps.app.goo.gl/...
+    # Ta theo redirect để lấy URL đầy đủ rồi bóc tọa độ.
+    if "maps.app.goo.gl/" in s or "goo.gl/maps/" in s:
+        try:
+            res = requests.get(
+                s,
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=8,
+                allow_redirects=True,
+            )
+            lat, lon = extract(res.url)
+            if lat is not None and lon is not None:
+                return lat, lon
+        except Exception:
+            pass
+
+    # Cuối cùng hỗ trợ chuỗi thuần "lat, lon".
     m = re.fullmatch(
         r'\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*', s
     )
@@ -59,6 +84,7 @@ def _extract_coords_from_maps_url(value):
         return float(m.group(1)), float(m.group(2))
 
     return None, None
+
 
 
 def _geocode_nominatim(q):
@@ -208,6 +234,11 @@ with col_refresh:
 diem_den_chon = st.text_input(
     "🔍 Nhập hoặc dán địa chỉ từ Google Maps vào đây...",
     placeholder="Tên địa điểm, địa chỉ hoặc dán link Google Maps...",
+)
+
+st.caption(
+    "⭐ Muốn lấy đúng địa điểm Google Maps: nhập tên → mở nút Google Maps bên dưới → chọn đúng địa điểm → "
+    "Chia sẻ → Sao chép liên kết → dán link đó vào ô này."
 )
 
 lat2, lon2 = None, None
