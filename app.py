@@ -93,9 +93,41 @@ if tim_kiem_den:
 st.divider()
 
 # ==========================================
-# BƯỚC 2: 📍 VỊ TRÍ ĐÓN (ĐÃ ĐƯA XUỐNG SAU KHI CHỌN ĐIỂM ĐẾN)
+# BƯỚC 2: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
 # ==========================================
-st.subheader("📍 2. Vị trí đón của bạn")
+st.subheader("📊 2. Thông tin chuyến đi & Cước phí")
+
+so_km = 0.0
+thoi_gian_phut = 0
+
+if lat1 and lon1 and lat2 and lon2:
+    km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
+    if km_goc:
+        so_km = round(km_goc * 1.025, 2)  # Bù sai số 2.5%
+        thoi_gian_phut = round((so_km / 35) * 60)
+    else:
+        so_km = 3.0  # Mặc định tạm tính nếu mất kết nối
+        thoi_gian_phut = round((so_km / 35) * 60)
+
+# Đơn giá cố định 5k/km
+DONG_GIA = 5000
+gia = so_km * DONG_GIA
+
+# Hiển thị trực quan các ô thông tin ngang hàng
+col_a, col_b, col_c = st.columns(3)
+with col_a:
+    st.metric(label="📏 Quãng đường", value=f"{so_km} km")
+with col_b:
+    st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
+with col_c:
+    st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
+
+st.divider()
+
+# ==========================================
+# BƯỚC 3: 📍 VỊ TRÍ ĐÓN (ĐÃ ĐƯA XUỐNG SAU KHI CHỌN ĐIỂM ĐẾN)
+# ==========================================
+st.subheader("📍 3. Vị trí đón của bạn")
 dung_gps = st.checkbox(
     "📍 Tự động lấy vị trí hiện tại của tôi (Khuyên dùng)", value=True
 )
@@ -133,37 +165,7 @@ else:
 
 st.divider()
 
-# ==========================================
-# BƯỚC 3: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
-# ==========================================
-st.subheader("📊 3. Thông tin chuyến đi & Cước phí")
 
-so_km = 0.0
-thoi_gian_phut = 0
-
-if lat1 and lon1 and lat2 and lon2:
-    km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
-    if km_goc:
-        so_km = round(km_goc * 1.025, 2)  # Bù sai số 2.5%
-        thoi_gian_phut = round((so_km / 35) * 60)
-    else:
-        so_km = 3.0  # Mặc định tạm tính nếu mất kết nối
-        thoi_gian_phut = round((so_km / 35) * 60)
-
-# Đơn giá cố định 5k/km
-DONG_GIA = 5000
-gia = so_km * DONG_GIA
-
-# Hiển thị trực quan các ô thông tin ngang hàng
-col_a, col_b, col_c = st.columns(3)
-with col_a:
-    st.metric(label="📏 Quãng đường", value=f"{so_km} km")
-with col_b:
-    st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
-with col_c:
-    st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
-
-st.divider()
 
 # ==========================================
 # BƯỚC 4: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
