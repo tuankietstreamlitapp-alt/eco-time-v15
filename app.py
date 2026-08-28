@@ -85,13 +85,15 @@ st.markdown(
 )
 
 # ============================================================
-# KHỞI TẠO SESSION STATE & TỰ ĐỘNG ĐĂNG NHẬP QUA QUERY PARAMS
+# KHỞI TẠO SESSION STATE & TỰ ĐỘNG ĐĂNG NHẬP
 # ============================================================
 defaults = {
     "logged_in": False,
     "user_phone": "",
     "user_name": "",
+    "customer_info": "",
     "trip_active": False,
+    "trip_id": "",
     "trip_started_at": None,
     "trip_ended_at": None,
     "trip_total_m": 0.0,
@@ -101,7 +103,11 @@ for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-# Tính năng Ghi nhớ đăng nhập: Kiểm tra SĐT từ query params khi mở lại app
+DONG_GIA = 5000  # VNĐ / km
+GPS_ACCURACY_MAX_M = 60
+MIN_MOVE_M = 4
+
+# Ghi nhớ đăng nhập từ query params
 if not st.session_state["logged_in"] and "phone" in st.query_params:
     saved_phone = st.query_params["phone"]
     if saved_phone:
@@ -119,7 +125,9 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
             st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
             st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Thành viên"))
 
-# Giao diện Đăng nhập nếu chưa xác thực
+# ============================================================
+# MÀN HÌNH ĐĂNG NHẬP
+# ============================================================
 if not st.session_state["logged_in"]:
     st.markdown(
         """
@@ -150,7 +158,6 @@ if not st.session_state["logged_in"]:
         else:
             with st.spinner("Đang kiểm tra dữ liệu từ Trang tính..."):
                 _, login_records = get_worksheet_data("DANG_NHAP")
-                
                 matched_user = None
                 if phone_input.upper() == "KHÁCH HÀNG":
                     matched_user = {"SĐT": "KHÁCH HÀNG", "TÊN TÀI XẾ": "Khách hàng tự do"}
@@ -177,12 +184,61 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # ============================================================
-# GIAO DIỆN CHÍNH SAU KHI ĐĂNG NHẬP
+# XỬ LÝ SỰ KIỆN KẾT THÚC CHUYẾN TỨC THÌ QUA URL PARAMS
 # ============================================================
-DONG_GIA = 5000  # VNĐ / km
-GPS_ACCURACY_MAX_M = 60
-MIN_MOVE_M = 4
+if "action" in st.query_params and st.query_params["action"] == "stop":
+    try:
+        dist_val = float(st.query_params.get("dist", 0.0))
+    except (TypeError, ValueError):
+        dist_val = 0.0
 
+    try:
+        start_ts = float(st.query_params.get("start", time.time()))
+    except (TypeError, ValueError):
+        start_ts = time.time()
+
+    cust_info = st.query_params.get("cust", st.session_state.get("customer_info", "Khách vãng lai"))
+    st.session_state.customer_info = cust_info
+
+    st.session_state.trip_active = False
+    st.session_state.trip_ended_at = time.time()
+    st.session_state.trip_total_m = dist_val
+    st.session_state.trip_status = "Đã hoàn thành"
+    
+    start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_ts))
+    end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state['trip_ended_at']))
+    km_val = round(dist_val / 1000.0, 2)
+    fare_val = round(km_val * DONG_GIA)
+    trip_id = f"C4567_{int(start_ts)}"
+    
+    row_data = [
+        trip_id, 
+        start_time_str,
+        end_time_str,
+        st.session_state['user_phone'],
+        st.session_state['user_name'],
+        cust_info,
+        km_val,
+        DONG_GIA,
+        fare_val,
+        "HOÀN THÀNH CUỐC XE"
+    ]
+    
+    # 4. & 5. GHI ĐỒNG THỜI VÀO CACHE_4567 VÀ DATA_4567 KHI KẾT THÚC
+    append_row_to_sheet("CACHE_4567", row_data)
+    append_row_to_sheet("DATA_4567", row_data)
+    
+    # Giữ lại trạng thái đăng nhập
+    phone_val = st.query_params.get("phone", "")
+    st.query_params.clear()
+    if phone_val:
+        st.query_params["phone"] = phone_val
+        
+    st.rerun()
+
+# ============================================================
+# GIAO DIỆN CHÍNH
+# ============================================================
 col_logo, col_text = st.columns([1, 4], vertical_alignment="center")
 with col_logo:
     st.write("🛵 **4567**")
@@ -199,53 +255,6 @@ with col_text:
 
 st.write("")
 
-# Xử lý kết thúc chuyến ngay lập tức khi nhận tín hiệu từ URL Query Params
-if "action" in st.query_params and st.query_params["action"] == "stop":
-    try:
-        dist_val = float(st.query_params.get("dist", 0.0))
-    except (TypeError, ValueError):
-        dist_val = 0.0
-
-    try:
-        start_ts = float(st.query_params.get("start", time.time()))
-    except (TypeError, ValueError):
-        start_ts = time.time()
-
-    st.session_state.trip_active = False
-    st.session_state.trip_ended_at = time.time()
-    st.session_state.trip_total_m = dist_val
-    st.session_state.trip_status = "Đã hoàn thành"
-    
-    start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_ts))
-    end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state['trip_ended_at']))
-    km_val = round(dist_val / 1000.0, 2)
-    fare_val = round(km_val * DONG_GIA)
-    
-    row_data = [
-        "", 
-        start_time_str,
-        end_time_str,
-        st.session_state['user_name'],
-        st.session_state['user_phone'],
-        fare_val,
-        st.session_state['user_name'],
-        km_val,
-        fare_val,
-        "Hoàn thành chuyến tự động qua GPS"
-    ]
-    
-    # Ghi tức thì vào cả DATA_4567 và CACHE_4567
-    append_row_to_sheet("DATA_4567", row_data)
-    append_row_to_sheet("CACHE_4567", row_data)
-    
-    # Giữ lại trạng thái đăng nhập (phone) khi clear query params
-    phone_val = st.query_params.get("phone", "")
-    st.query_params.clear()
-    if phone_val:
-        st.query_params["phone"] = phone_val
-        
-    st.rerun()
-
 def reset_trip():
     st.session_state.trip_active = False
     st.session_state.trip_started_at = None
@@ -253,55 +262,77 @@ def reset_trip():
     st.session_state.trip_total_m = 0.0
     st.session_state.trip_status = "Chưa bắt đầu"
 
-def start_trip():
-    reset_trip()
-    st.session_state.trip_active = True
-    st.session_state.trip_started_at = time.time()
-    st.session_state.trip_status = "Đang chạy"
-
 # ============================================================
-# TRẠNG THÁI CUỘC XE & ĐỒNG BỘ CACHE BỘ NHỚ MÁY
+# TRẠNG THÁI 1: SẴN SÀNG NHẬN KHÁCH
 # ============================================================
 if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     st.markdown(
         """
         <div class="section-card">
             <div class="section-title">🚦 Sẵn sàng nhận khách</div>
-            <div class="section-desc">Hệ thống GPS kích hoạt tự động, lưu Cache an toàn và đồng bộ dữ liệu vào Trang tính ngay khi kết thúc.</div>
+            <div class="section-desc">Nhập thông tin khách hàng (nếu có) và bấm bắt đầu để kích hoạt định vị GPS thời gian thực.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    cust_input = st.text_input("Thông tin khách hàng (SĐT / Tên / Ghi chú):", placeholder="Ví dụ: Anh Nam - 0912345678 (Có thể bỏ trống)")
+
     if st.button("🟢 BẮT ĐẦU CUỐC XE", use_container_width=True):
-        start_trip()
+        reset_trip()
+        st.session_state.trip_active = True
+        st.session_state.trip_started_at = time.time()
+        st.session_state.customer_info = cust_input.strip() if cust_input.strip() else "Khách vãng lai"
+        st.session_state.trip_id = f"C4567_{int(st.session_state.trip_started_at)}"
+        
+        start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state.trip_started_at))
+        
+        # 3. GHI NGAY THỜI GIAN THỰC & THÔNG TIN BẮT ĐẦU VÀO CACHE_4567 TRÊN TRANG TÍNH
+        cache_row = [
+            st.session_state.trip_id,
+            start_time_str,
+            "Đang di chuyển...",
+            st.session_state['user_phone'],
+            st.session_state['user_name'],
+            st.session_state.customer_info,
+            0,
+            DONG_GIA,
+            0,
+            "BẮT ĐẦU CUỐC"
+        ]
+        append_row_to_sheet("CACHE_4567", cache_row)
         st.rerun()
 
+# ============================================================
+# TRẠNG THÁI 2: HÀNH TRÌNH ĐANG DIỄN RA
+# ============================================================
 elif st.session_state.trip_active:
     st.markdown(
-        """
+        f"""
         <div class="section-card" style="border-color: #00A86B;">
             <div class="section-title" style="color: #00A86B;">🟢 Hành trình đang diễn ra</div>
-            <div class="section-desc" style="margin-bottom:0;">Đang Cache dữ liệu thời gian thực. Tải lại trang hay thoát app hoàn toàn không làm mất quãng đường.</div>
+            <div class="section-desc" style="margin-bottom:0;">Khách hàng: <b>{st.session_state.get('customer_info', 'Khách vãng lai')}</b><br>Dữ liệu được Cache thời gian thực. Bấm Kết thúc bên dưới để chốt cuốc.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
+    cust_param = urllib.parse.quote(st.session_state.get('customer_info', 'Khách vãng lai'))
 
-    # Sử dụng thẻ <a> ẩn với target="_top" giúp lách mọi tường lửa chặn chuyển trang của trình duyệt di động
+    # 1. & 2. SỬA LỖI NÚT KẾT THÚC TỨC THÌ (Gỡ bỏ iframe Sandbox + Dùng Top Navigation chuẩn)
     html_live_tracker = f"""
-    <div style="font-family: sans-serif; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center;">
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center;">
         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 16px; margin-bottom: 14px;">
             <div style="color: #166534; font-size: 12px; font-weight: 700; text-transform: uppercase;">Cước phí tạm tính</div>
             <div id="price" style="color: #0f172a; font-size: 34px; font-weight: 900; margin: 4px 0;">0 VNĐ</div>
             <div style="color: #475569; font-size: 12px;"><span id="km">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
         </div>
-        <button onclick="stopTrip()" style="width: 100%; background: #0f172a; color: white; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 800; cursor: pointer;">
-            💳 KẾT THÚC & GHI VÀO DATA SHEET NGAY
+        
+        <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+            💳 KẾT THÚC & GHI VÀO SHEET NGAY
         </button>
-        <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 8px;">GPS: Đang theo dõi & Cache Active...</div>
+        <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 10px;">GPS: Đang theo dõi & Cache Active...</div>
     </div>
 
     <script>
@@ -350,47 +381,83 @@ elif st.session_state.trip_active:
         );
     }}
 
-    function stopTrip() {{
+    function stopTripNow() {{
+        let btn = document.getElementById("btnStop");
+        btn.innerText = "⏳ ĐANG LƯU DỮ LIỆU...";
+        btn.style.background = "#64748b";
+        btn.disabled = true;
+
         let finalDist = localStorage.getItem("xeom_total_meters") || "0";
         localStorage.removeItem("xeom_total_meters");
         localStorage.removeItem("xeom_trip_active");
         localStorage.removeItem("xeom_start_time");
         
-        let parentUrl = window.parent.location.href.split('?')[0];
-        let params = new URLSearchParams(window.parent.location.search);
-        params.set("action", "stop");
-        params.set("dist", finalDist);
-        params.set("start", "{current_start_ts}");
-        
-        // Dùng thẻ <a> click giả lập với target="_top" để vượt mọi cơ chế chặn khung iframe của trình duyệt
-        let targetUrl = parentUrl + "?" + params.toString();
-        let a = document.createElement("a");
-        a.href = targetUrl;
-        a.target = "_top";
-        document.body.appendChild(a);
-        a.click();
+        let targetUrl = window.top.location.href.split('?')[0] + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cust={cust_param}";
+        window.top.location.href = targetUrl;
     }}
     </script>
     """
-    components.html(html_live_tracker, height=200)
+    components.html(html_live_tracker, height=220)
 
+# ============================================================
+# TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE & HIỆU ỨNG CELEBRATION
+# ============================================================
 elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     km = st.session_state.trip_total_m / 1000.0
     fare = km * DONG_GIA
 
-    components.html(
-        """
-        <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-        <script>setTimeout(() => { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }, 200);</script>
-        """,
-        height=1,
-    )
+    # 6. HIỆU ỨNG KẾT THÚC (Confetti Bắn Pháo Hoa Trực Tiếp Khung Hình)
+    confetti_html = """
+    <canvas id="confetti-canvas" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9999;"></canvas>
+    <script>
+    (function() {
+        let canvas = document.getElementById('confetti-canvas');
+        let ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        let particles = [];
+        let colors = ['#00A86B', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'];
+        
+        for (let i = 0; i < 80; i++) {
+            particles.push({
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                r: Math.random() * 6 + 4,
+                vx: (Math.random() - 0.5) * 12,
+                vy: (Math.random() - 0.7) * 12,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                life: 100
+            });
+        }
+        
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2;
+                p.life -= 1.5;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.life / 100);
+                ctx.fill();
+            });
+            if (particles.some(p => p.life > 0)) {
+                requestAnimationFrame(update);
+            }
+        }
+        update();
+    })();
+    </script>
+    """
+    components.html(confetti_html, height=1)
 
     st.markdown(
-        """
+        f"""
         <div class="section-card" style="border-color: #00A86B;">
             <div class="section-title" style="color: #00A86B;">🎉 HOÀN THÀNH & ĐÃ GHI VÀO DATA SHEET</div>
-            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công tức thì vào bảng `DATA_4567`!</div>
+            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công tức thì vào tab <b>CACHE_4567</b> và <b>DATA_4567</b>!</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -401,7 +468,8 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     with c2: st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f}đ")
     with c3: st.metric("💵 Tổng tiền", f"{fare:,.0f} VNĐ")
 
-    st.success("✅ Lưu thành công lịch sử vào Google Sheets!")
+    st.info(f"👤 **Khách hàng:** {st.session_state.get('customer_info', 'Khách vãng lai')} | 🛵 **Tài xế:** {st.session_state['user_name']}")
+    st.success("✅ Đã cập nhật thành công dữ liệu vào Google Sheets phục vụ theo dõi & xét khen thưởng!")
     
     st.write("")
     if st.button("♻️ BẮT ĐẦU CUỐC MỚI", use_container_width=True):
@@ -413,7 +481,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
 # ============================================================
 st.markdown("---")
 with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", expanded=False):
-    st.info("Dữ liệu được tải trực tiếp từ Tab `DATA_4567` và `CACHE_4567` trên trang tính của ní.")
+    st.info("Dữ liệu được tải trực tiếp từ Tab `DATA_4567` và `CACHE_4567` trên Trang tính.")
     
     tab_rep1, tab_rep2 = st.tabs(["📦 Dữ liệu DATA_4567", "⚡ Bộ nhớ CACHE_4567"])
     
@@ -430,9 +498,6 @@ with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", e
         if cache_records:
             df_cache = pd.DataFrame(cache_records)
             st.dataframe(df_cache, use_container_width=True)
-            if "THÀNH TIỀN" in df_cache.columns:
-                total_rev = pd.to_numeric(df_cache["THÀNH TIỀN"], errors='coerce').sum()
-                st.metric("Tổng doanh thu lưu trong Cache", f"{total_rev:,.0f} VNĐ")
         else:
             st.warning("Chưa có dữ liệu ghi nhận trong `CACHE_4567`.")
 
