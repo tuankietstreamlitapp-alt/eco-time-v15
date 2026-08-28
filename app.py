@@ -8,8 +8,11 @@ st.set_page_config(
 )
 
 st.title("🛵 Đội Xe Ôm Tin Cẩn (45–60)")
-st.caption("Minh bạch - An toàn - Nhanh chóng - Tiện lợi")
-
+st.markdown(
+    "<h3 align='center' style='color: gray; font-size: 18px;'>Minh bạch -"
+    " An toàn - Nhanh chóng - Tiện lợi</h3>",
+    unsafe_allow_html=True,
+)
 st.divider()
 
 
