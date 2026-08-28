@@ -52,7 +52,6 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
         res = requests.get(url, timeout=5).json()
         if "routes" in res and len(res["routes"]) > 0:
             met = res["routes"][0]["distance"]
-            # Lấy đúng chuẩn tỷ lệ thực tế, loại bỏ hệ số dư thừa
             return round(met / 1000.0, 2)
     except Exception:
         pass
@@ -100,20 +99,35 @@ st.subheader("📊 2. Thông tin chuyến đi & Cước phí")
 
 so_km = 0.0
 thoi_gian_phut = 0
-
-# Tự động ngầm lấy vị trí GPS hiện tại của khách
 lat1, lon1 = None, None
 diem_don_text = "Vị trí GPS hiện tại của bạn"
 
-loc = get_geolocation()
-if loc and "coords" in loc:
-    lat1 = loc["coords"]["latitude"]
-    lon1 = loc["coords"]["longitude"]
+# Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
+cho_phep_gps = st.radio(
+    "📍 Cho phép sử dụng vị trí của bạn?",
+    options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
+    index=0,
+    horizontal=True,
+)
+
+if cho_phep_gps.startswith("Có"):
+    loc = get_geolocation()
+    if loc and "coords" in loc:
+        lat1 = loc["coords"]["latitude"]
+        lon1 = loc["coords"]["longitude"]
+        st.success("✅ Đã bật định vị vị trí thành công!")
+    else:
+        st.info(
+            "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
+            " bảng thông báo của trình duyệt nếu có."
+        )
+else:
+    st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
 
 if lat1 and lon1 and lat2 and lon2:
     km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
     if km_goc:
-        so_km = km_goc  # Giữ chuẩn xác 100% theo dữ liệu đường đi thực tế
+        so_km = km_goc
         thoi_gian_phut = round((so_km / 35) * 60)
     else:
         so_km = 3.0
@@ -131,18 +145,6 @@ with col_b:
     st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
 with col_c:
     st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
-
-# Thiết kế dạng click mở rộng để bảo vệ tính riêng tư của khách
-if lat1 and lon1:
-    with st.expander("🔒 Bảo mật vị trí cá nhân (Bấm để xem trạng thái)"):
-        st.success(
-            "✅ Đã định vị xong vị trí của bạn ẩn danh an toàn trên thiết bị."
-        )
-else:
-    st.info(
-        "💡 Trình duyệt đang lấy GPS. Hãy bấm 'Cho phép' nếu được hỏi quyền vị"
-        " trí."
-    )
 
 st.divider()
 
@@ -176,4 +178,7 @@ if diem_den_chon and lat1 and lon1 and so_km > 0:
             "💬 GỬI ĐƠN QUA ZALO", zalo_url, use_container_width=True
         )
 else:
-    st.info("💡 Vui lòng nhập điểm đến để hiển thị nút đặt xe.")
+    st.info(
+        "💡 Vui lòng nhập điểm đến và bật cho phép sử dụng vị trí để hiển thị nút"
+        " đặt xe."
+    )
