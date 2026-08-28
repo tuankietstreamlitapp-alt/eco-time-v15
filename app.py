@@ -104,7 +104,7 @@ diem_don_text = "Vị trí GPS hiện tại của bạn"
 
 # Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
 cho_phep_gps = st.radio(
-    #"📍 Cho phép sử dụng vị trí của bạn?",
+    # "📍 Cho phép sử dụng vị trí của bạn?",
     options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
     index=0,
     horizontal=True,
@@ -115,11 +115,11 @@ if cho_phep_gps.startswith("Có"):
     if loc and "coords" in loc:
         lat1 = loc["coords"]["latitude"]
         lon1 = loc["coords"]["longitude"]
-        st.success #("💰 Sô tiền cần thanh toán.")
+        st.success # ("💰 Sô tiền cần thanh toán.")
     else:
         st.info(
-            #"💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
-            #" bảng thông báo của trình duyệt nếu có."
+            # "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
+            # " bảng thông báo của trình duyệt nếu có."
         )
 else:
     st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
