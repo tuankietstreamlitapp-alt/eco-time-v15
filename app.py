@@ -19,347 +19,271 @@ st.markdown(
 )
 
 
-# 1. Tìm tọa độ điểm đến
-# Ưu tiên:
-#   A) Link Google Maps -> lấy trực tiếp tọa độ từ chính link (không cần API key)
-#   B) Nominatim
-#   C) Photon
-#   D) ArcGIS World Geocoder
-#
-# Không có Google Maps API thì không thể sao chép 100% kho POI của Google.
-# Vì vậy app cho phép dán link Google Maps để lấy đúng vị trí người dùng đã chọn.
 
-def _extract_coords_from_maps_url(value):
-    """Lấy tọa độ từ Google Maps URL, kể cả link rút gọn maps.app.goo.gl."""
-    if not value:
-        return None, None
+# ============================================================
+# V7: TÍNH CƯỚC THEO HÀNH TRÌNH GPS THỰC TẾ
+# ============================================================
 
-    s = value.strip()
+DONG_GIA = 5000              # VNĐ / km
+GPS_ACCURACY_MAX_M = 50      # Bỏ điểm GPS có sai số lớn hơn mức này
+MIN_MOVE_M = 10              # Bỏ nhiễu GPS nhỏ hơn 10 m
+MAX_JUMP_SPEED_KMH = 120     # Loại trừ cú nhảy GPS bất thường
+GPS_POLL_SECONDS = 2         # Cập nhật khoảng mỗi 2 giây
 
-    def extract(raw):
-        m = re.search(r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)', raw)
-        if m:
-            return float(m.group(1)), float(m.group(2))
+# Khởi tạo trạng thái cuốc xe.
+defaults = {
+    "trip_active": False,
+    "trip_started_at": None,
+    "trip_ended_at": None,
+    "trip_total_m": 0.0,
+    "trip_points": [],
+    "trip_last_lat": None,
+    "trip_last_lon": None,
+    "trip_last_ts": None,
+    "trip_last_accuracy": None,
+    "trip_status": "Chưa bắt đầu",
+}
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-        m = re.search(r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)', raw)
-        if m:
-            return float(m.group(1)), float(m.group(2))
 
-        for key in ("query", "destination", "center"):
-            m = re.search(
-                rf'(?:[?&]{key}=)(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)',
-                raw,
-                re.I,
-            )
-            if m:
-                return float(m.group(1)), float(m.group(2))
+def haversine_m(lat1, lon1, lat2, lon2):
+    """Khoảng cách đường chim bay giữa 2 điểm GPS, đơn vị mét."""
+    r = 6_371_000.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
 
-        return None, None
-
-    lat, lon = extract(s)
-    if lat is not None and lon is not None:
-        return lat, lon
-
-    # Google Maps thường cho link chia sẻ dạng https://maps.app.goo.gl/...
-    # Ta theo redirect để lấy URL đầy đủ rồi bóc tọa độ.
-    if "maps.app.goo.gl/" in s or "goo.gl/maps/" in s:
-        try:
-            res = requests.get(
-                s,
-                headers={"User-Agent": "Mozilla/5.0"},
-                timeout=8,
-                allow_redirects=True,
-            )
-            lat, lon = extract(res.url)
-            if lat is not None and lon is not None:
-                return lat, lon
-        except Exception:
-            pass
-
-    # Cuối cùng hỗ trợ chuỗi thuần "lat, lon".
-    m = re.fullmatch(
-        r'\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*', s
+    a = (
+        math.sin(dp / 2) ** 2
+        + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
     )
-    if m:
-        return float(m.group(1)), float(m.group(2))
-
-    return None, None
+    return 2 * r * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1 - a)))
 
 
-
-def _geocode_nominatim(q):
-    url = (
-        "https://nominatim.openstreetmap.org/search"
-        f"?q={urllib.parse.quote(q)}&format=json&countrycodes=vn&limit=3"
-    )
-    res = requests.get(
-        url,
-        headers={"User-Agent": "DoiXeOmApp_Pro/2.1"},
-        timeout=6,
-    ).json()
-    if not res:
-        return None, None
-    return float(res[0]["lat"]), float(res[0]["lon"])
+def reset_trip():
+    st.session_state.trip_active = False
+    st.session_state.trip_started_at = None
+    st.session_state.trip_ended_at = None
+    st.session_state.trip_total_m = 0.0
+    st.session_state.trip_points = []
+    st.session_state.trip_last_lat = None
+    st.session_state.trip_last_lon = None
+    st.session_state.trip_last_ts = None
+    st.session_state.trip_last_accuracy = None
+    st.session_state.trip_status = "Chưa bắt đầu"
 
 
-def _geocode_photon(q):
-    url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q)}&limit=5"
-    res = requests.get(
-        url, headers={"User-Agent": "DoiXeOmApp_Pro/2.1"}, timeout=6
-    ).json()
-    features = res.get("features", [])
-    if not features:
-        return None, None
-    coords = features[0]["geometry"]["coordinates"]
-    return float(coords[1]), float(coords[0])
+def start_trip():
+    reset_trip()
+    st.session_state.trip_active = True
+    st.session_state.trip_started_at = __import__("time").time()
+    st.session_state.trip_status = "Đang chạy"
 
 
-def _geocode_arcgis(q):
-    url = (
-        "https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer/"
-        f"findAddressCandidates?f=json&singleLine={urllib.parse.quote(q)}&maxLocations=3"
-    )
-    res = requests.get(
-        url, headers={"User-Agent": "DoiXeOmApp_Pro/2.1"}, timeout=7
-    ).json()
-    candidates = res.get("candidates", [])
-    if not candidates:
-        return None, None
-    loc = candidates[0].get("location", {})
-    if "y" in loc and "x" in loc:
-        return float(loc["y"]), float(loc["x"])
-    return None, None
+def stop_trip():
+    st.session_state.trip_active = False
+    st.session_state.trip_ended_at = __import__("time").time()
+    st.session_state.trip_status = "Đã kết thúc"
 
 
-def lay_toa_do_diem_den(dia_chi):
-    if not dia_chi or len(dia_chi.strip()) < 2:
-        return None, None
+def process_gps(loc):
+    """Lọc nhiễu GPS rồi cộng dồn quãng đường thực tế."""
+    if not st.session_state.trip_active:
+        return
 
-    # Dán link Google Maps => lấy chính xác tọa độ của địa điểm trong link.
-    lat, lon = _extract_coords_from_maps_url(dia_chi)
-    if lat is not None and lon is not None:
-        return lat, lon
+    if not loc or "coords" not in loc:
+        st.session_state.trip_status = "Đang chờ GPS..."
+        return
 
-    raw_query = dia_chi.strip()
-    query_no_postal = re.sub(r"\b\d{5}\b", "", raw_query)
-    query_clean = re.sub(r"\s+", " ", query_no_postal).replace(" ,", ",").strip()
+    coords = loc.get("coords", {})
+    lat = coords.get("latitude")
+    lon = coords.get("longitude")
+    accuracy = coords.get("accuracy")
+    timestamp = loc.get("timestamp")
 
-    parts = [p.strip() for p in query_clean.split(",")]
-    queries_to_try = [query_clean, raw_query]
+    if lat is None or lon is None:
+        return
 
-    if len(parts) >= 2:
-        queries_to_try.append(f"{parts[0]}, {parts[1]}, Đồng Nai, Việt Nam")
-    if len(parts) >= 3:
-        queries_to_try.append(f"{parts[0]}, {parts[1]}, {parts[2]}, Việt Nam")
-
-    seen = set()
-    for q in queries_to_try:
-        q = q.strip()
-        if not q or q.lower() in seen:
-            continue
-        seen.add(q.lower())
-
-        q_full = (
-            q if ("việt nam" in q.lower() or "vietnam" in q.lower())
-            else f"{q}, Việt Nam"
-        )
-
-        for geocoder in (_geocode_nominatim, _geocode_photon, _geocode_arcgis):
-            try:
-                lat, lon = geocoder(q_full)
-                if lat is not None and lon is not None:
-                    return lat, lon
-            except Exception:
-                pass
-
-    return None, None
-
-
-# 2. Tính quãng đường bằng OSRM + hệ số an toàn để hạn chế app bị thiếu km
-# Lưu ý: OSRM không phải Google Maps nên không thể cam kết trùng 100%.
-# Hệ số này được đặt 10% dựa trên trường hợp test 21.82 km so với ~23.9-24 km của Google Maps.
-HE_SO_AN_TOAN_CUOC = 1.10
-
-
-def lam_tron_len_0_1(km):
-    return round((km + 0.099999) * 10) / 10
-
-
-def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
     try:
-        url = (
-            f"https://router.project-osrm.org/route/v1/driving/"
-            f"{lon1},{lat1};{lon2},{lat2}"
-            f"?overview=false&alternatives=true"
+        lat = float(lat)
+        lon = float(lon)
+        accuracy = float(accuracy) if accuracy is not None else 999.0
+        ts = float(timestamp) / 1000.0 if timestamp else __import__("time").time()
+    except (TypeError, ValueError):
+        return
+
+    # Không cộng khi GPS quá sai.
+    if accuracy > GPS_ACCURACY_MAX_M:
+        st.session_state.trip_last_accuracy = accuracy
+        st.session_state.trip_status = f"GPS đang sai số ~{accuracy:.0f} m — tạm không tính"
+        return
+
+    last_lat = st.session_state.trip_last_lat
+    last_lon = st.session_state.trip_last_lon
+    last_ts = st.session_state.trip_last_ts
+
+    # Điểm GPS đầu tiên: lấy làm mốc, chưa cộng km.
+    if last_lat is None or last_lon is None or last_ts is None:
+        st.session_state.trip_last_lat = lat
+        st.session_state.trip_last_lon = lon
+        st.session_state.trip_last_ts = ts
+        st.session_state.trip_last_accuracy = accuracy
+        st.session_state.trip_points.append(
+            {"lat": lat, "lon": lon, "ts": ts, "accuracy": accuracy}
         )
-        res = requests.get(url, timeout=7).json()
+        st.session_state.trip_status = "Đã khóa vị trí bắt đầu"
+        return
 
-        routes = res.get("routes", [])
-        if not routes:
-            return None
+    distance_m = haversine_m(last_lat, last_lon, lat, lon)
+    dt = max(0.5, ts - last_ts)
+    speed_kmh = (distance_m / dt) * 3.6
 
-        # Lấy tuyến cơ sở và, nếu có, tuyến thay thế dài hơn.
-        distances_km = [
-            float(route.get("distance", 0)) / 1000.0
-            for route in routes
-            if route.get("distance") is not None
-        ]
-        if not distances_km:
-            return None
+    # Bỏ rung GPS nhỏ.
+    if distance_m < MIN_MOVE_M:
+        st.session_state.trip_status = f"Đang theo dõi • GPS ±{accuracy:.0f} m"
+        return
 
-        km_osrm = max(distances_km)
+    # Bỏ cú nhảy GPS bất thường.
+    if speed_kmh > MAX_JUMP_SPEED_KMH:
+        st.session_state.trip_status = "Phát hiện GPS nhảy bất thường — bỏ đoạn này"
+        return
 
-        # Hệ số an toàn chỉ dùng để hạn chế thu thiếu khi dữ liệu OSRM ngắn hơn thực tế.
-        km_tinh_cuoc = max(km_osrm, distances_km[0] * HE_SO_AN_TOAN_CUOC)
+    st.session_state.trip_total_m += distance_m
+    st.session_state.trip_last_lat = lat
+    st.session_state.trip_last_lon = lon
+    st.session_state.trip_last_ts = ts
+    st.session_state.trip_last_accuracy = accuracy
+    st.session_state.trip_points.append(
+        {
+            "lat": lat,
+            "lon": lon,
+            "ts": ts,
+            "accuracy": accuracy,
+            "segment_m": distance_m,
+            "speed_kmh": speed_kmh,
+        }
+    )
+    st.session_state.trip_status = f"Đang chạy • GPS ±{accuracy:.0f} m"
 
-        return lam_tron_len_0_1(km_tinh_cuoc)
-    except Exception:
-        return None
+
+def format_km(total_m):
+    return round(total_m / 1000.0, 2)
 
 
-# ==========================================
-# BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (DÁN TRỰC TIẾP TỪ GOOGLE MAPS)
-# ==========================================
+def format_fare(total_m):
+    return round((total_m / 1000.0) * DONG_GIA)
+
+
+# ============================================================
+# GIAO DIỆN
+# ============================================================
+
 col_title, col_refresh = st.columns([8, 1])
 with col_title:
-    st.subheader("🏁 Nơi bạn muốn đến")
+    st.subheader("🏁 Tính cước theo hành trình thực tế")
 with col_refresh:
     if st.button(
         "🔄 F5",
-        help="Tải lại trang và lấy lại dữ liệu vị trí/điểm đến",
+        help="Tải lại trang và lấy lại dữ liệu vị trí",
         use_container_width=True,
     ):
         st.rerun()
 
-diem_den_chon = st.text_input(
-    "🔍 Nhập hoặc dán địa chỉ từ Google Maps vào đây...",
-    placeholder="Tên địa điểm, địa chỉ hoặc dán link Google Maps...",
+st.info(
+    "💡 Tài xế chỉ cần bấm **BẮT ĐẦU CUỐC** khi khách lên xe. "
+    "App sẽ cộng quãng đường GPS thực tế. Đứng yên thì không cộng tiền. "
+    "Khách đổi nhiều điểm đến cũng không cần nhập lại."
 )
 
-st.caption(
-    "⭐ Muốn lấy đúng địa điểm Google Maps: nhập tên → mở nút Google Maps bên dưới → chọn đúng địa điểm → "
-    "Chia sẻ → Sao chép liên kết → dán link đó vào ô này."
-)
-
-lat2, lon2 = None, None
-
-if diem_den_chon and len(diem_den_chon.strip()) >= 2:
-    with st.spinner("⏳ Đang tìm địa điểm và đối chiếu tuyến..."):
-        lat2, lon2 = lay_toa_do_diem_den(diem_den_chon)
-        if lat2 and lon2:
-            st.success("✅ Đã tìm thấy điểm đến!")
-        else:
-            st.warning("⚠️ Chưa tìm thấy địa điểm bằng bộ tìm kiếm miễn phí.")
-
-            google_search_url = (
-                "https://www.google.com/maps/search/?api=1&query="
-                + urllib.parse.quote(diem_den_chon)
-            )
-            st.link_button(
-                "🌐 TÌM ĐỊA ĐIỂM TRÊN GOOGLE MAPS",
-                google_search_url,
-                use_container_width=True,
-            )
-            st.info(
-                "💡 Trên Google Maps: chọn đúng địa điểm → Chia sẻ → Sao chép liên kết → "
-                "dán liên kết đó vào ô trên. App sẽ lấy tọa độ trực tiếp từ link Google Maps."
-            )
-
-st.divider()
-
-# ==========================================
-# BƯỚC 2: 📊 THÔNG TIN CHUYẾN ĐI & CƯỚC PHÍ (ĐÓNG KHUNG KIỂU BILL)
-# ==========================================
-so_km = 0.0
-thoi_gian_phut = 0
-lat1, lon1 = None, None
-diem_don_text = "Vị trí GPS hiện tại của bạn"
-
-with st.container(border=True):
-    st.subheader("🧾 Chi Tiết Cước Phí Chuyến Đi")
-
-    cho_phep_gps = st.radio(
-        "📍 Cho phép sử dụng vị trí của bạn?",
-        options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
-        index=0,
-        horizontal=True,
-    )
-
-    if cho_phep_gps.startswith("Có"):
-        loc = get_geolocation()
-        if loc and "coords" in loc:
-            lat1 = loc["coords"]["latitude"]
-            lon1 = loc["coords"]["longitude"]
-            st.success("✅ Đã bật vị trí!")
-        else:
-            st.info(
-                "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
-                " thông báo của trình duyệt."
-            )
-    else:
-        st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
-
-    if lat1 and lon1 and lat2 and lon2:
-        km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
-        if km_goc:
-            so_km = km_goc
-            thoi_gian_phut = round((so_km / 30) * 60)
-        else:
-            st.warning("⚠️ Chưa tính được quãng đường. Vui lòng thử lại sau.")
-            so_km = 0.0
-            thoi_gian_phut = 0
-
-    DONG_GIA = 5000
-    gia = so_km * DONG_GIA
-
-    st.markdown("---")
-
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.metric(label="📏 Quãng đường", value=f"{so_km} Km")
-    with col_b:
-        st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} Phút")
-    with col_c:
-        st.metric(label="💰 Tổng cước", value=f"{gia:,.0f} VNĐ")
-
-    st.caption(
-        f"ℹ️ Km tính cước đã cộng biên độ an toàn {round((HE_SO_AN_TOAN_CUOC - 1) * 100)}% "
-        "để hạn chế sai số so với tuyến thực tế."
-    )
-
-st.divider()
-
-# ==========================================
-# BƯỚC 3: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
-# ==========================================
-HOTLINE = "0978666620"
-
-if diem_den_chon and lat1 and lon1 and so_km > 0:
-    maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den_chon)}&travelmode=two-wheeler"
-
-    st.markdown(
-        f"🧭 **Chỉ đường cho Tài Xế:** [Mở Google Maps]({maps_url})"
-    )
-
-    noi_dung_zalo = urllib.parse.quote(
-        f"Chào Đội Xe, tôi muốn đặt xe:\n- Đón: {diem_don_text}\n- Đến: {diem_den_chon}\n- Quãng đường: {so_km}km (~{thoi_gian_phut} phút)\n- Cước phí: {gia:,.0f}đ"
-    )
-    zalo_url = f"https://zalo.me/{HOTLINE}?text={noi_dung_zalo}"
-
-    c1, c2 = st.columns(2)
+if not st.session_state.trip_active:
+    st.caption("Trạng thái: " + st.session_state.trip_status)
+    c1, c2 = st.columns([2, 1])
     with c1:
-        st.link_button(
-            "📞 GỌI XUẤT XE NGAY",
-            f"tel:{HOTLINE}",
+        if st.button(
+            "🟢 BẮT ĐẦU CUỐC",
             use_container_width=True,
             type="primary",
-        )
+            disabled=False,
+        ):
+            start_trip()
+            st.rerun()
     with c2:
-        st.link_button(
-            "💬 GỬI ĐƠN QUA ZALO", zalo_url, use_container_width=True
-        )
+        st.metric("Cước hiện tại", "0 VNĐ")
 else:
-    st.info(
-        "💡 Vui lòng nhập điểm đến và bật cho phép sử dụng vị trí để hiển thị nút"
-        " đặt xe."
-    )
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button(
+            "🔴 KẾT THÚC CUỐC",
+            use_container_width=True,
+            type="primary",
+        ):
+            stop_trip()
+            st.rerun()
+    with c2:
+        st.metric("Quãng đường", f"{format_km(st.session_state.trip_total_m)} km")
+    with c3:
+        st.metric("Cước tạm tính", f"{format_fare(st.session_state.trip_total_m):,.0f} VNĐ")
+
+    st.caption(st.session_state.trip_status)
+
+    # Fragment tự chạy lại khoảng mỗi 2 giây để lấy GPS mới.
+    # Nếu môi trường Streamlit quá cũ, app vẫn báo lỗi rõ ràng thay vì tính sai tiền.
+    try:
+        @st.fragment(run_every=f"{GPS_POLL_SECONDS}s")
+        def gps_tracker():
+            try:
+                loc = get_geolocation()
+                process_gps(loc)
+            except Exception as exc:
+                st.warning(f"⚠️ Chưa đọc được GPS: {exc}")
+
+            st.metric(
+                "📍 Tổng quãng đường thực tế",
+                f"{format_km(st.session_state.trip_total_m)} km",
+            )
+
+            if st.session_state.trip_active:
+                st.caption(
+                    "📡 GPS đang được cập nhật tự động. "
+                    "Nếu trình duyệt hỏi quyền vị trí, hãy chọn Cho phép."
+                )
+
+        gps_tracker()
+    except Exception:
+        # Tương thích với Streamlit không hỗ trợ fragment.
+        st.error(
+            "⚠️ Phiên bản Streamlit hiện tại chưa hỗ trợ cập nhật GPS tự động. "
+            "Cần nâng Streamlit lên phiên bản có st.fragment()."
+        )
+
+# Hiển thị hóa đơn khi kết thúc.
+if not st.session_state.trip_active and st.session_state.trip_ended_at:
+    km = format_km(st.session_state.trip_total_m)
+    fare = format_fare(st.session_state.trip_total_m)
+
+    st.divider()
+    with st.container(border=True):
+        st.subheader("🧾 HÓA ĐƠN CUỐC XEOM4560")
+        a, b, c = st.columns(3)
+        with a:
+            st.metric("📏 Quãng đường", f"{km} km")
+        with b:
+            st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f} đ/km")
+        with c:
+            st.metric("💵 TỔNG CƯỚC", f"{fare:,.0f} VNĐ")
+
+        st.success("✅ Cuốc xe đã kết thúc. Có thể thu tiền khách.")
+
+        if st.button("♻️ CUỐC MỚI", use_container_width=True):
+            reset_trip()
+            st.rerun()
+
+st.divider()
+st.caption(
+    "🔒 Cơ chế lọc GPS: bỏ điểm có sai số > "
+    f"{GPS_ACCURACY_MAX_M} m, bỏ nhiễu < {MIN_MOVE_M} m và bỏ cú nhảy "
+    f"GPS tương đương > {MAX_JUMP_SPEED_KMH} km/h."
+)
