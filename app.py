@@ -52,7 +52,6 @@ def get_worksheet_data(tab_name):
         return None, []
 
 def get_next_stt(tab_name):
-    """Hàm tự động tính STT dựa trên số lượng dòng đang có trong Sheet"""
     try:
         _, records = get_worksheet_data(tab_name)
         if not records:
@@ -81,7 +80,7 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         if ws is None or not records:
             return False
         
-        for i, row in enumerate(records, start=2):  # start=2 vì dòng 1 là Header
+        for i, row in enumerate(records, start=2):
             if str(row.get(col_name, "")) == str(target_val):
                 ws.delete_rows(i)
                 return True
@@ -133,7 +132,7 @@ for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-DONG_GIA = 5000  # VNĐ / km
+DONG_GIA = 5000
 GPS_ACCURACY_MAX_M = 60
 MIN_MOVE_M = 4
 
@@ -241,7 +240,6 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     start_time_str = get_vn_time(start_ts)
     end_time_str = get_vn_time(st.session_state['trip_ended_at'])
     
-    # Tính toán thời lượng (TỔNG THỜI GIAN CUỐC XE)
     time_diff = max(0, int(st.session_state['trip_ended_at'] - start_ts))
     hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
@@ -250,27 +248,24 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     fare_val = round(km_val * DONG_GIA)
     trip_id = f"C4567_{int(start_ts)}"
     
-    # MAP CHÍNH XÁC 13 CỘT VÀO DATA_4567
     stt = get_next_stt("DATA_4567")
     row_data = [
-        stt,                            # 1. STT
-        trip_id,                        # 2. MÃ CUỐC XE
-        start_time_str,                 # 3. THỜI GIAN BẮT ĐẦU
-        end_time_str,                   # 4. THỜI GIAN KẾT THÚC
-        total_time_str,                 # 5. TỔNG THỜI GIAN CUỐC XE
-        cname,                          # 6. KHÁCH HÀNG
-        cphone,                         # 7. SĐT KH
-        fare_val,                       # 8. CƯỚC TẠM TÍNH
-        st.session_state['user_name'],  # 9. TÊN TÀI XẾ
-        DONG_GIA,                       # 10. ĐƠN GIÁ 1KM
-        km_val,                         # 11. TỔNG KM ĐÃ ĐI
-        fare_val,                       # 12. THÀNH TIỀN
-        "HOÀN THÀNH CUỐC XE"            # 13. GHI CHÚ
+        stt,                            
+        trip_id,                        
+        start_time_str,                 
+        end_time_str,                   
+        total_time_str,                 
+        cname,                          
+        cphone,                         
+        fare_val,                       
+        st.session_state['user_name'],  
+        DONG_GIA,                       
+        km_val,                         
+        fare_val,                       
+        "HOÀN THÀNH CUỐC XE"            
     ]
     
     append_row_to_sheet("DATA_4567", row_data)
-    
-    # XOÁ CACHE BẰNG CỘT "MÃ CUỐC XE"
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
     
     st.session_state["show_balloons"] = True
@@ -341,22 +336,21 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         
         start_time_str = get_vn_time(st.session_state.trip_started_at)
         
-        # MAP 13 CỘT VÀO CACHE_4567
         stt_cache = get_next_stt("CACHE_4567")
         cache_row = [
-            stt_cache,                          # 1. STT
-            st.session_state.trip_id,           # 2. MÃ CUỐC XE
-            start_time_str,                     # 3. THỜI GIAN BẮT ĐẦU
-            "---",                              # 4. THỜI GIAN KẾT THÚC
-            "---",                              # 5. TỔNG THỜI GIAN CUỐC XE
-            st.session_state.cust_name,         # 6. KHÁCH HÀNG
-            st.session_state.cust_phone,        # 7. SĐT KH
-            0,                                  # 8. CƯỚC TẠM TÍNH
-            st.session_state['user_name'],      # 9. TÊN TÀI XẾ
-            DONG_GIA,                           # 10. ĐƠN GIÁ 1KM
-            0,                                  # 11. TỔNG KM ĐÃ ĐI
-            0,                                  # 12. THÀNH TIỀN
-            "BẮT ĐẦU CUỐC"                      # 13. GHI CHÚ
+            stt_cache,                          
+            st.session_state.trip_id,           
+            start_time_str,                     
+            "---",                              
+            "---",                              
+            st.session_state.cust_name,         
+            st.session_state.cust_phone,        
+            0,                                  
+            st.session_state['user_name'],      
+            DONG_GIA,                           
+            0,                                  
+            0,                                  
+            "BẮT ĐẦU CUỐC"                      
         ]
         append_row_to_sheet("CACHE_4567", cache_row)
         st.rerun()
@@ -459,7 +453,7 @@ elif st.session_state.trip_active:
     components.html(html_live_tracker, height=200)
 
 # ============================================================
-# TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE
+# TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE (ĐÃ GỘP LIỀN MẠCH VÀO GIAO DIỆN)
 # ============================================================
 elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     
@@ -473,8 +467,8 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     st.markdown(
         f"""
         <div class="section-card" style="border-color: #00A86B;">
-            <div class="section-title" style="color: #00A86B;">🎉 CUỐC XE ĐÃ CHỐT SỔ TỚI DATA</div>
-            <div class="section-desc">Dữ liệu chuyến đi đã được chuyển hẳn sang tab <b>DATA_4567</b> theo format chuẩn 13 Cột và Cache đã được xoá sạch!</div>
+            <div class="section-title" style="color: #00A86B;">🎉 KẾT QUẢ CUỐC XE HOÀN TẤT</div>
+            <div class="section-desc">Hệ thống đã tự động đẩy dữ liệu sang tab <b>DATA_4567</b> và dọn dẹp bộ nhớ đệm thành công!</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -488,12 +482,12 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     st.info(f"👤 **Khách hàng:** {st.session_state.get('cust_name', 'Khách vãng lai')} | 🛵 **Tài xế:** {st.session_state['user_name']}")
     
     st.write("")
-    if st.button("♻️ BẮT ĐẦU CUỐC MỚI", use_container_width=True):
+    if st.button("♻️ SẴN SÀNG NHẬN CHUYẾN MỚI", use_container_width=True):
         reset_trip()
         st.rerun()
 
 # ============================================================
-# KHU VỰC XEM BÁO CÁO (ĐÃ ẨN CỘT INDEX MẶC ĐỊNH)
+# KHU VỰC XEM BÁO CÁO (ẨN CỘT INDEX MẶC ĐỊNH)
 # ============================================================
 st.markdown("---")
 with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", expanded=False):
