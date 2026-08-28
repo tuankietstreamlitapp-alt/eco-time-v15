@@ -13,7 +13,7 @@ st.caption("Minh bạch - An toàn - Tự động định vị GPS thực tế")
 st.divider()
 
 
-# 1. Hàm định vị địa danh nếu khách tự gõ bằng tay
+# 1. Hàm định vị địa danh
 def lay_toa_do_tu_ten(dia_chi):
     if not dia_chi or dia_chi.strip() == "":
         return None, None
@@ -31,7 +31,7 @@ def lay_toa_do_tu_ten(dia_chi):
     return None, None
 
 
-# 2. Hàm tính km lái xe thực tế
+# 2. Hàm tính km lái xe thực tế (OSRM)
 def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
     try:
         url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
@@ -44,7 +44,7 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
     return None
 
 
-# 3. LẤY TỌA ĐỘ GPS THỰC TẾ TỪ ĐIỆN THOẠI KHÁCH
+# 3. LẤY TỌA ĐỘ GPS
 st.subheader("1. Vị trí đón của bạn")
 dung_gps = st.checkbox("📍 Tự động lấy Vị trí GPS hiện tại của tôi", value=True)
 
@@ -64,14 +64,14 @@ if dung_gps:
         st.info("💡 Vui lòng bấm 'Cho phép' khi trình duyệt hỏi quyền truy cập Vị trí/GPS.")
         diem_don_input = st.text_input(
             "Hoặc nhập Điểm đón thủ công:",
-            placeholder="Ví dụ: Công ty Taekwang Vina...",
+            placeholder="Ví dụ: Khu dân cư An Bình...",
         )
         if diem_don_input:
             lat1, lon1 = lay_toa_do_tu_ten(diem_don_input)
             diem_don_text = diem_don_input
 else:
     diem_don_input = st.text_input(
-        "Nhập Điểm đón thủ công:", placeholder="Ví dụ: Ngã tư AMATA..."
+        "Nhập Điểm đón thủ công:", placeholder="Ví dụ: Khu dân cư An Bình..."
     )
     if diem_don_input:
         lat1, lon1 = lay_toa_do_tu_ten(diem_don_input)
@@ -82,34 +82,45 @@ st.divider()
 # 4. NHẬP ĐIỂM ĐẾN
 st.subheader("2. Nơi bạn muốn đến")
 diem_den = st.text_input(
-    "🏁 Điểm đến:", placeholder="Ví dụ: Nhà Thờ Giáo Xứ Bùi Đệ..."
+    "🏁 Điểm đến:", placeholder="Ví dụ: Dong Nai Golf Resort..."
 )
 
 so_km = 0.0
+thoi_gian_phut = 0
 
-# 5. TÍNH KHOẢNG CÁCH VÀ CƯỚC PHÍ
+# 5. TÍNH KHOẢNG CÁCH, THỜI GIAN VÀ CƯỚC PHÍ
 if lat1 and lon1 and diem_den:
     lat2, lon2 = lay_toa_do_tu_ten(diem_den)
 
     if lat2 and lon2:
-        km = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
-        if km:
-            so_km = km
+        km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
+        if km_goc:
+            # Cộng thêm 2.5% bù hao sai số so với Google Maps để không bị lỗ
+            so_km = round(km_goc * 1.025, 2)
+            
+            # Tính thời gian dựa trên tốc độ bình quân 35km/h
+            # Công thức: (Quãng đường / Vận tốc) * 60 phút
+            thoi_gian_phut = round((so_km / 35) * 60)
+            
             st.success(
-                f"✅ Quãng đường thực tế trên Google Maps: **{so_km} km**"
+                f"✅ Quãng đường ước tính: **{so_km} km**"
+            )
+            st.info(
+                f"⏱️ Thời gian di chuyển: **Khoảng {thoi_gian_phut} phút** (Vận tốc trung bình 35km/h)"
             )
         else:
-            st.warning("⚠️ Không tìm thấy tuyến đường lái xe, vui lòng nhập km thủ công:")
+            st.warning("⚠️ Không tìm thấy tuyến đường, vui lòng nhập thủ công:")
             so_km = st.number_input("📏 Nhập km thủ công:", min_value=0.5, value=5.0, step=0.5)
+            thoi_gian_phut = round((so_km / 35) * 60)
     else:
         st.warning("⚠️ Không tìm thấy vị trí điểm đến, vui lòng kiểm tra lại tên điểm đến.")
 
-# Tính cước phí đồng giá 2.000 VNĐ/km
-DONG_GIA = 2000
+# Tính cước phí (Ní nhớ thay đổi giá 5000 thành giá thực tế đội muốn thu nhé)
+DONG_GIA = 5000 
 gia = so_km * DONG_GIA
 
 st.metric(
-    label="💰 Tổng cước phí dự kiến (2.000đ/km)", value=f"{gia:,.0f} VNĐ"
+    label=f"💰 Tổng cước phí dự kiến ({DONG_GIA:,}đ/km)", value=f"{gia:,.0f} VNĐ"
 )
 
 st.divider()
@@ -117,15 +128,16 @@ st.divider()
 # 6. ĐẶT XE
 HOTLINE = "0901234567"  # Ní thay SĐT hotline vào đây
 
-if diem_den and lat1 and lon1:
+if diem_den and lat1 and lon1 and so_km > 0:
     maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den)}&travelmode=driving"
 
     st.markdown(
         f"🧭 **Lộ trình trực tuyến cho Tài Xế:** [Bấm để mở Google Maps]({maps_url})"
     )
 
+    # Đưa cả thời gian dự kiến vào tin nhắn Zalo gửi cho tài xế
     noi_dung_zalo = urllib.parse.quote(
-        f"Chào Đội Xe, tôi muốn đặt xe:\n- Đón: {diem_don_text}\n- Đến: {diem_den}\n- Quãng đường: {so_km}km\n- Cước phí: {gia:,.0f}đ"
+        f"Chào Đội Xe, tôi muốn đặt xe:\n- Đón: {diem_don_text}\n- Đến: {diem_den}\n- Quãng đường: {so_km}km (~{thoi_gian_phut} phút)\n- Cước phí: {gia:,.0f}đ"
     )
     zalo_url = f"https://zalo.me/{HOTLINE}?text={noi_dung_zalo}"
 
