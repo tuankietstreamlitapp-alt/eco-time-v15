@@ -1,4 +1,3 @@
 streamlit
 requests
-geopy
-streamlit-geolocation
+streamlit-js-eval
