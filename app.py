@@ -14,7 +14,8 @@ st.set_page_config(
 # ============================================================
 # CẤU HÌNH KẾT NỐI GOOGLE SHEETS
 # ============================================================
-SHEET_TITLE = "4567_XEOM_2026"
+# Lấy trực tiếp thông tin từ cấu hình [connections.gsheets] trong secrets của ní
+SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
 
 @st.cache_resource
 def init_google_sheet_client():
@@ -22,8 +23,8 @@ def init_google_sheet_client():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    # Lấy thông tin xác thực từ Streamlit Secrets
-    creds_dict = dict(st.secrets["gcp_service_account"])
+    # Trỏ đúng vào dictionary connections.gsheets
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
@@ -31,7 +32,11 @@ def init_google_sheet_client():
 def get_worksheet_data(tab_name):
     try:
         client = init_google_sheet_client()
-        sheet = client.open(SHEET_TITLE)
+        # Mở trang tính trực tiếp bằng ID (SHEET_KEY) hoặc tên
+        try:
+            sheet = client.open_by_key(SHEET_KEY)
+        except Exception:
+            sheet = client.open("4567_XEOM_2026")
         ws = sheet.worksheet(tab_name)
         return ws, ws.get_all_records()
     except Exception as e:
@@ -41,7 +46,10 @@ def get_worksheet_data(tab_name):
 def append_row_to_sheet(tab_name, row_values):
     try:
         client = init_google_sheet_client()
-        sheet = client.open(SHEET_TITLE)
+        try:
+            sheet = client.open_by_key(SHEET_KEY)
+        except Exception:
+            sheet = client.open("4567_XEOM_2026")
         ws = sheet.worksheet(tab_name)
         ws.append_row(row_values)
         return True
