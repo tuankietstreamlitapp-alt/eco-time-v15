@@ -13,7 +13,7 @@ st.caption("Minh bạch - An toàn - Nhanh chóng - Tiện lợi")
 st.divider()
 
 
-# 1. Hàm tìm danh sách địa điểm gợi ý (Trả về tối đa 5 kết quả)
+# 1. Hàm tìm danh sách địa điểm gợi ý
 def lay_danh_sach_goi_y(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return []
@@ -59,7 +59,7 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 
 
 # ==========================================
-# PHẦN 1: ƯU TIÊN NHẬP ĐIỂM ĐẾN LÊN HÀNG ĐẦU
+# PHẦN 1: 🔍 NHẬP ĐIỂM ĐẾN (ĐÃ ĐƯA LÊN TRÊN CÙNG)
 # ==========================================
 st.subheader("🏁 1. Nơi bạn muốn đến")
 tim_kiem_den = st.text_input(
@@ -93,7 +93,7 @@ if tim_kiem_den:
 st.divider()
 
 # ==========================================
-# PHẦN 2: VỊ TRÍ ĐÓN (ĐÃ LÙI XUỐNG PHÍA SAU)
+# PHẦN 2: 📍 VỊ TRÍ ĐÓN (LÙI XUỐNG PHÍA DƯỚI)
 # ==========================================
 st.subheader("📍 2. Vị trí đón của bạn")
 dung_gps = st.checkbox(
@@ -133,7 +133,11 @@ else:
 
 st.divider()
 
-# 3. TÍNH KHOẢNG CÁCH, THỜI GIAN VÀ CƯỚC PHÍ
+# ==========================================
+# PHẦN 3: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ NỔI BẬT
+# ==========================================
+st.subheader("📊 3. Thông tin chuyến đi & Cước phí")
+
 so_km = 0.0
 thoi_gian_phut = 0
 
@@ -142,26 +146,28 @@ if lat1 and lon1 and lat2 and lon2:
     if km_goc:
         so_km = round(km_goc * 1.025, 2)  # Bù sai số 2.5%
         thoi_gian_phut = round((so_km / 35) * 60)
-
-        st.success(f"📏 Quãng đường di chuyển: **{so_km} km**")
-        st.info(f"⏱️ Thời gian dự kiến: **Khoảng {thoi_gian_phut} phút**")
     else:
-        so_km = st.number_input(
-            "⚠️ Nhập số km thủ công:", min_value=0.5, value=3.0, step=0.5
-        )
+        so_km = 3.0  # Mặc định tạm tính nếu mất kết nối
         thoi_gian_phut = round((so_km / 35) * 60)
 
 # Đơn giá cố định 5k/km
 DONG_GIA = 5000
 gia = so_km * DONG_GIA
 
-st.metric(
-    label=f"💰 Tổng cước phí dự kiến ({DONG_GIA:,}đ/km)", value=f"{gia:,.0f} VNĐ"
-)
+# Hiển thị trực quan các ô thông tin ngang hàng
+col_a, col_b, col_c = st.columns(3)
+with col_a:
+    st.metric(label="📏 Quãng đường", value=f"{so_km} km")
+with col_b:
+    st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
+with col_c:
+    st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
 
 st.divider()
 
-# 4. ĐẶT XE KẾT NỐI HOTLINE & ZALO
+# ==========================================
+# PHẦN 4: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
+# ==========================================
 HOTLINE = "0901234567"  # Ní thay SĐT của chú bác tài xế vào đây
 
 if diem_den_chon and lat1 and lon1 and so_km > 0:
@@ -188,3 +194,7 @@ if diem_den_chon and lat1 and lon1 and so_km > 0:
         st.link_button(
             "💬 GỬI ĐƠN QUA ZALO", zalo_url, use_container_width=True
         )
+else:
+    st.info(
+        "💡 Vui lòng nhập điểm đến và đảm bảo đã bật vị trí đón để hiển thị nút đặt xe."
+    )
