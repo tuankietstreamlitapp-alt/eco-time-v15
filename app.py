@@ -8,6 +8,12 @@ st.set_page_config(
     page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
 )
 
+# Nút F5 / làm mới dữ liệu ở đầu trang.
+top_left, top_right = st.columns([1, 8])
+with top_left:
+    if st.button("🔄 F5", help="Tải lại trang và lấy lại dữ liệu vị trí/điểm đến"):
+        st.rerun()
+
 st.markdown(
     """
     <div style="text-align: center; background: linear-gradient(135deg, #fff3cd, #ffeeba); padding: 15px; border-radius: 12px; border: 1px solid #ffe8a1;">
@@ -19,55 +25,132 @@ st.markdown(
 )
 
 
-# 1. Tìm tọa độ bằng dịch vụ bản đồ miễn phí; Google Maps chỉ dùng để mở chỉ đường
+# 1. Tìm tọa độ điểm đến
+# Ưu tiên:
+#   A) Link Google Maps -> lấy trực tiếp tọa độ từ chính link (không cần API key)
+#   B) Nominatim
+#   C) Photon
+#   D) ArcGIS World Geocoder
+#
+# Không có Google Maps API thì không thể sao chép 100% kho POI của Google.
+# Vì vậy app cho phép dán link Google Maps để lấy đúng vị trí người dùng đã chọn.
+
+def _extract_coords_from_maps_url(value):
+    if not value:
+        return None, None
+
+    s = value.strip()
+
+    m = re.search(r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)', s)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+
+    m = re.search(r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)', s)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+
+    for key in ("query", "destination", "center"):
+        m = re.search(
+            rf'(?:[?&]{key}=)(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)',
+            s,
+            re.I,
+        )
+        if m:
+            return float(m.group(1)), float(m.group(2))
+
+    m = re.fullmatch(
+        r'\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*', s
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+
+    return None, None
+
+
+def _geocode_nominatim(q):
+    url = (
+        "https://nominatim.openstreetmap.org/search"
+        f"?q={urllib.parse.quote(q)}&format=json&countrycodes=vn&limit=3"
+    )
+    res = requests.get(
+        url,
+        headers={"User-Agent": "DoiXeOmApp_Pro/2.1"},
+        timeout=6,
+    ).json()
+    if not res:
+        return None, None
+    return float(res[0]["lat"]), float(res[0]["lon"])
+
+
+def _geocode_photon(q):
+    url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q)}&limit=5"
+    res = requests.get(
+        url, headers={"User-Agent": "DoiXeOmApp_Pro/2.1"}, timeout=6
+    ).json()
+    features = res.get("features", [])
+    if not features:
+        return None, None
+    coords = features[0]["geometry"]["coordinates"]
+    return float(coords[1]), float(coords[0])
+
+
+def _geocode_arcgis(q):
+    url = (
+        "https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer/"
+        f"findAddressCandidates?f=json&singleLine={urllib.parse.quote(q)}&maxLocations=3"
+    )
+    res = requests.get(
+        url, headers={"User-Agent": "DoiXeOmApp_Pro/2.1"}, timeout=7
+    ).json()
+    candidates = res.get("candidates", [])
+    if not candidates:
+        return None, None
+    loc = candidates[0].get("location", {})
+    if "y" in loc and "x" in loc:
+        return float(loc["y"]), float(loc["x"])
+    return None, None
+
+
 def lay_toa_do_diem_den(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return None, None
 
+    # Dán link Google Maps => lấy chính xác tọa độ của địa điểm trong link.
+    lat, lon = _extract_coords_from_maps_url(dia_chi)
+    if lat is not None and lon is not None:
+        return lat, lon
+
     raw_query = dia_chi.strip()
-
-    # Loại bỏ mã bưu chính (ví dụ: các số 5 chữ số như 81000, 70000...) thường có trong copy của Google Maps
     query_no_postal = re.sub(r"\b\d{5}\b", "", raw_query)
-    query_clean = (
-        re.sub(r"\s+", " ", query_no_postal).replace(" ,", ",").strip()
-    )
+    query_clean = re.sub(r"\s+", " ", query_no_postal).replace(" ,", ",").strip()
 
-    # Tạo danh sách các cách thử truy vấn từ chi tiết đến ngắn gọn để vét cạn kết quả chuẩn Google Maps
+    parts = [p.strip() for p in query_clean.split(",")]
     queries_to_try = [query_clean, raw_query]
 
-    # Tách lấy phần cốt lõi (Số nhà + Tên đường + Phường/Khu vực) nếu địa chỉ quá dài
-    parts = [p.strip() for p in query_clean.split(",")]
+    if len(parts) >= 2:
+        queries_to_try.append(f"{parts[0]}, {parts[1]}, Đồng Nai, Việt Nam")
     if len(parts) >= 3:
-        short_query = f"{parts[0]}, {parts[1]}, Đồng Nai, Việt Nam"
-        queries_to_try.append(short_query)
+        queries_to_try.append(f"{parts[0]}, {parts[1]}, {parts[2]}, Việt Nam")
 
+    seen = set()
     for q in queries_to_try:
-        if not q:
+        q = q.strip()
+        if not q or q.lower() in seen:
             continue
-        q_full = q if "đồng nai" in q.lower() else f"{q}, Đồng Nai, Việt Nam"
+        seen.add(q.lower())
 
-        # Thử tìm bằng Nominatim (OpenStreetMap)
-        try:
-            url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(q_full)}&format=json&countrycodes=vn&limit=1"
-            res = requests.get(
-                url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=4
-            ).json()
-            if res:
-                return float(res[0].get("lat")), float(res[0].get("lon"))
-        except Exception:
-            pass
+        q_full = (
+            q if ("việt nam" in q.lower() or "vietnam" in q.lower())
+            else f"{q}, Việt Nam"
+        )
 
-        # Thử tìm bằng Photon dự phòng
-        try:
-            url_p = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q_full)}&limit=1"
-            res_p = requests.get(
-                url_p, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=4
-            ).json()
-            if res_p.get("features"):
-                coords = res_p["features"][0]["geometry"]["coordinates"]
-                return coords[1], coords[0]
-        except Exception:
-            pass
+        for geocoder in (_geocode_nominatim, _geocode_photon, _geocode_arcgis):
+            try:
+                lat, lon = geocoder(q_full)
+                if lat is not None and lon is not None:
+                    return lat, lon
+            except Exception:
+                pass
 
     return None, None
 
@@ -120,7 +203,7 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 st.subheader("🏁 Nơi bạn muốn đến")
 diem_den_chon = st.text_input(
     "🔍 Nhập hoặc dán địa chỉ từ Google Maps vào đây...",
-    placeholder="Ví dụ: Đồng Hồ Hải Triều, 64 Đ. Đồng Khởi, Tam Hiệp...",
+    placeholder="Tên địa điểm, địa chỉ hoặc dán link Google Maps...",
 )
 
 lat2, lon2 = None, None
@@ -131,9 +214,20 @@ if diem_den_chon and len(diem_den_chon.strip()) >= 2:
         if lat2 and lon2:
             st.success("✅ Đã tìm thấy điểm đến!")
         else:
-            st.warning(
-                "⚠️ Không tìm thấy tọa độ chính xác, vui lòng kiểm tra lại tên"
-                " đường hoặc số nhà."
+            st.warning("⚠️ Chưa tìm thấy địa điểm bằng bộ tìm kiếm miễn phí.")
+
+            google_search_url = (
+                "https://www.google.com/maps/search/?api=1&query="
+                + urllib.parse.quote(diem_den_chon)
+            )
+            st.link_button(
+                "🌐 TÌM ĐỊA ĐIỂM TRÊN GOOGLE MAPS",
+                google_search_url,
+                use_container_width=True,
+            )
+            st.info(
+                "💡 Trên Google Maps: chọn đúng địa điểm → Chia sẻ → Sao chép liên kết → "
+                "dán liên kết đó vào ô trên. App sẽ lấy tọa độ trực tiếp từ link Google Maps."
             )
 
 st.divider()
