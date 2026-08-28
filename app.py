@@ -115,7 +115,7 @@ if cho_phep_gps.startswith("Có"):
     if loc and "coords" in loc:
         lat1 = loc["coords"]["latitude"]
         lon1 = loc["coords"]["longitude"]
-        st.success("✅ Sô tiền cần thanh toán")
+        st.success("💰 Sô tiền cần thanh toán.")
     else:
         st.info(
             "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
