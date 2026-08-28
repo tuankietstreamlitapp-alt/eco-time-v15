@@ -165,10 +165,10 @@ with st.container(border=True):
         km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
         if km_goc:
             so_km = km_goc
-            thoi_gian_phut = round((so_km / 30) * 60)
+            thoi_gian_phut = round((so_km / 27) * 60)
         else:
             so_km = 3.0
-            thoi_gian_phut = round((so_km / 30) * 60)
+            thoi_gian_phut = round((so_km / 27) * 60)
 
     DONG_GIA = 5000
     gia = so_km * DONG_GIA
