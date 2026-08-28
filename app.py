@@ -15,7 +15,7 @@ st.caption("Minh bạch - An toàn - Tự động định vị GPS thực tế")
 st.divider()
 
 
-# 1. Hàm tìm địa điểm bằng chữ (Dùng cho trường hợp khẩn cấp)
+# 1. Hàm tìm địa điểm bằng chữ (Dùng dự phòng khi cần)
 def lay_danh_sach_goi_y(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return []
@@ -78,35 +78,32 @@ else:
 
 st.divider()
 
-# 4. BẢN ĐỒ TƯƠNG TÁC CHỌN ĐIỂM ĐẾN
+# 4. BẢN ĐỒ TƯƠNG TÁC CHỌN ĐIỂM ĐẾN (ĐÃ FIX LỖI HIỂN THỊ NỀN)
 st.subheader("🏁 2. Nơi bạn muốn đến")
 st.write("👆 **Vuốt và CHẠM TRỰC TIẾP lên bản đồ** dưới đây để ghim điểm đến.")
 
 # Tâm bản đồ mặc định: Lấy GPS hiện tại, nếu chưa có thì lấy tạm trung tâm Đồng Nai
 map_center = [lat1, lon1] if (lat1 and lon1) else [10.9574, 106.8427]
 
-# Khởi tạo bản đồ Folium với Tile Layer URL cố định để chống lỗi xám nền
-m = folium.Map(
-    location=map_center, 
-    zoom_start=14, 
-    tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attr="© OpenStreetMap contributors"
-)
+# Khởi tạo bản đồ Folium
+m = folium.Map(location=map_center, zoom_start=14, control_scale=True)
 
-# Hiển thị Điểm Đón màu Xanh lá (nếu có)
+# GỌI LỚP HIỂN THỊ NỀN BẢN ĐỒ (BẮT BUỘC CÓ ĐỂ KHÔNG BỊ TRẮNG XÁM)
+folium.TileLayer(
+    tiles='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    max_zoom=19,
+).add_to(m)
+
+# Hiển thị Điểm Đón màu Xanh lá
 if lat1 and lon1:
     folium.Marker(
         [lat1, lon1], popup="📍 Đang đứng ở đây", tooltip="Điểm Đón",
         icon=folium.Icon(color="green", icon="user")
     ).add_to(m)
 
-# Vẽ bản đồ ra màn hình: Đã bật tính năng Tự động bung rộng (use_container_width)
-bando_du_lieu = st_folium(
-    m, 
-    height=450, 
-    use_container_width=True, 
-    returned_objects=["last_clicked"]
-)
+# Vẽ bản đồ ra màn hình
+bando_du_lieu = st_folium(m, height=450, width=720, returned_objects=["last_clicked"])
 
 lat2, lon2 = None, None
 diem_den_chon = ""
@@ -118,7 +115,7 @@ if bando_du_lieu and bando_du_lieu.get("last_clicked"):
     diem_den_chon = "Điểm đã ghim trên bản đồ"
     st.success("📍 Bạn vừa ghim điểm đến thành công! Xem cước phí bên dưới 👇")
 
-# Trường hợp khẩn cấp (Khách gõ chữ)
+# Trường hợp khẩn cấp (Gõ chữ)
 with st.expander("Gõ tìm tên đường (Dùng khi không quen xài bản đồ)"):
     tim_kiem_den = st.text_input("🔍 Nhập địa điểm:", placeholder="Ví dụ: Bệnh viện Đa Khoa Đồng Nai...")
     if tim_kiem_den:
@@ -160,10 +157,9 @@ st.metric(label=f"💰 Tổng cước phí dự kiến ({DONG_GIA:,}đ/km)", val
 st.divider()
 
 # 6. ĐẶT XE
-HOTLINE = "0901234567"  # Ní nhớ thay SĐT hotline của đội vào đây
+HOTLINE = "0901234567"  # Ní nhớ thay SĐT
 
 if lat1 and lon1 and lat2 and lon2 and so_km > 0:
-    # Link này gửi cho bác tài bấm vào mở app Google Maps đi ngay
     maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={lat2},{lon2}&travelmode=driving"
 
     st.markdown(f"🧭 **Lộ trình trực tuyến cho Tài Xế:** [Bấm để mở Google Maps]({maps_url})")
