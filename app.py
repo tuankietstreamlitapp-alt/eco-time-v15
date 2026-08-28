@@ -80,13 +80,18 @@ st.divider()
 
 # 4. BẢN ĐỒ TƯƠNG TÁC CHỌN ĐIỂM ĐẾN
 st.subheader("🏁 2. Nơi bạn muốn đến")
-st.write("👆 **Vuốt và CHẠM TRỰC TIẾP lên bản đồ** dưới đây để ghim điểm đến (nhanh và chuẩn nhất).")
+st.write("👆 **Vuốt và CHẠM TRỰC TIẾP lên bản đồ** dưới đây để ghim điểm đến.")
 
 # Tâm bản đồ mặc định: Lấy GPS hiện tại, nếu chưa có thì lấy tạm trung tâm Đồng Nai
 map_center = [lat1, lon1] if (lat1 and lon1) else [10.9574, 106.8427]
 
-# Khởi tạo bản đồ Folium
-m = folium.Map(location=map_center, zoom_start=14)
+# Khởi tạo bản đồ Folium với Tile Layer URL cố định để chống lỗi xám nền
+m = folium.Map(
+    location=map_center, 
+    zoom_start=14, 
+    tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attr="© OpenStreetMap contributors"
+)
 
 # Hiển thị Điểm Đón màu Xanh lá (nếu có)
 if lat1 and lon1:
@@ -95,8 +100,13 @@ if lat1 and lon1:
         icon=folium.Icon(color="green", icon="user")
     ).add_to(m)
 
-# Vẽ bản đồ ra màn hình và chờ khách bấm
-bando_du_lieu = st_folium(m, height=400, width=720, returned_objects=["last_clicked"])
+# Vẽ bản đồ ra màn hình: Đã bật tính năng Tự động bung rộng (use_container_width)
+bando_du_lieu = st_folium(
+    m, 
+    height=450, 
+    use_container_width=True, 
+    returned_objects=["last_clicked"]
+)
 
 lat2, lon2 = None, None
 diem_den_chon = ""
@@ -150,7 +160,7 @@ st.metric(label=f"💰 Tổng cước phí dự kiến ({DONG_GIA:,}đ/km)", val
 st.divider()
 
 # 6. ĐẶT XE
-HOTLINE = "0901234567"  # Ní nhớ thay SĐT
+HOTLINE = "0901234567"  # Ní nhớ thay SĐT hotline của đội vào đây
 
 if lat1 and lon1 and lat2 and lon2 and so_km > 0:
     # Link này gửi cho bác tài bấm vào mở app Google Maps đi ngay
