@@ -155,7 +155,6 @@ if not st.session_state["logged_in"]:
 # GIAO DIỆN CHÍNH SAU KHI ĐĂNG NHẬP
 # ============================================================
 DONG_GIA = 5000  # VNĐ / km
-HOTLINE = "0978666620"
 GPS_ACCURACY_MAX_M = 60
 MIN_MOVE_M = 4
 
@@ -192,7 +191,7 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     km_val = round(dist_val / 1000.0, 2)
     fare_val = round(km_val * DONG_GIA)
     
-    cache_row = [
+    row_data = [
         "", 
         start_time_str,
         end_time_str,
@@ -204,7 +203,10 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         fare_val,
         "Hoàn thành chuyến tự động qua GPS"
     ]
-    append_row_to_sheet("CACHE_4567", cache_row)
+    
+    # Ghi đồng thời vào cả DATA_4567 và CACHE_4567 để lưu lịch sử đầy đủ
+    append_row_to_sheet("DATA_4567", row_data)
+    append_row_to_sheet("CACHE_4567", row_data)
     
     st.query_params.clear()
     st.rerun()
@@ -259,7 +261,7 @@ elif st.session_state.trip_active:
             <div style="color: #475569; font-size: 12px;"><span id="km">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
         </div>
         <button onclick="stopTrip()" style="width: 100%; background: #0f172a; color: white; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 800; cursor: pointer;">
-            💳 KẾT THÚC & LƯU CACHE VÀO SHEET
+            💳 KẾT THÚC & LƯU LỊCH SỬ VÀO SHEET
         </button>
         <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 8px;">GPS: Đang kết nối...</div>
     </div>
@@ -334,8 +336,8 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     st.markdown(
         """
         <div class="section-card" style="border-color: #00A86B;">
-            <div class="section-title" style="color: #00A86B;">🎉 HOÀN THÀNH VÀ ĐÃ LƯU CACHE</div>
-            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công vào Google Sheets (`CACHE_4567`)!</div>
+            <div class="section-title" style="color: #00A86B;">🎉 HOÀN THÀNH VÀ ĐÃ LƯU LỊCH SỬ</div>
+            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công vào bảng `DATA_4567` và `CACHE_4567`!</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -346,7 +348,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     with c2: st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f}đ")
     with c3: st.metric("💵 Tổng tiền", f"{fare:,.0f} VNĐ")
 
-    st.success("✅ Đã đồng bộ dữ liệu lên mây thành công!")
+    st.success("✅ Đã đồng bộ lịch sử chuyến đi lên Google Sheets thành công!")
     
     st.write("")
     if st.button("♻️ BẮT ĐẦU CUỐC MỚI", use_container_width=True):
