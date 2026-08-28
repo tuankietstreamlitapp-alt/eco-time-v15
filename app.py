@@ -199,7 +199,7 @@ with col_text:
 
 st.write("")
 
-# Xử lý kết thúc chuyến ngay lập tức khi nhận tín hiệu từ JS
+# Xử lý kết thúc chuyến ngay lập tức khi nhận tín hiệu từ URL Query Params
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
         dist_val = float(st.query_params.get("dist", 0.0))
@@ -273,29 +273,6 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         unsafe_allow_html=True,
     )
 
-    # Đoạn script kiểm tra xem có chuyến xe đang chạy dở dang trong localStorage hay không
-    components.html(
-        """
-        <script>
-        let savedMeters = localStorage.getItem("xeom_total_meters");
-        let isTripActive = localStorage.getItem("xeom_trip_active");
-        if (isTripActive === "true" && savedMeters && parseFloat(savedMeters) > 5) {
-            let startTs = localStorage.getItem("xeom_start_time") || Date.now();
-            let parentUrl = window.parent.location.href.split('?')[0];
-            let params = new URLSearchParams(window.parent.location.search);
-            params.set("action", "stop");
-            params.set("dist", savedMeters);
-            params.set("start", startTs);
-            localStorage.removeItem("xeom_total_meters");
-            localStorage.removeItem("xeom_trip_active");
-            localStorage.removeItem("xeom_start_time");
-            window.parent.location.href = parentUrl + "?" + params.toString();
-        }
-        </script>
-        """,
-        height=1,
-    )
-
     if st.button("🟢 BẮT ĐẦU CUỐC XE", use_container_width=True):
         start_trip()
         st.rerun()
@@ -313,6 +290,7 @@ elif st.session_state.trip_active:
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
 
+    # Sử dụng thẻ <a> ẩn với target="_top" giúp lách mọi tường lửa chặn chuyển trang của trình duyệt di động
     html_live_tracker = f"""
     <div style="font-family: sans-serif; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center;">
         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 16px; margin-bottom: 14px;">
@@ -383,7 +361,14 @@ elif st.session_state.trip_active:
         params.set("action", "stop");
         params.set("dist", finalDist);
         params.set("start", "{current_start_ts}");
-        window.parent.location.href = parentUrl + "?" + params.toString();
+        
+        // Dùng thẻ <a> click giả lập với target="_top" để vượt mọi cơ chế chặn khung iframe của trình duyệt
+        let targetUrl = parentUrl + "?" + params.toString();
+        let a = document.createElement("a");
+        a.href = targetUrl;
+        a.target = "_top";
+        document.body.appendChild(a);
+        a.click();
     }}
     </script>
     """
