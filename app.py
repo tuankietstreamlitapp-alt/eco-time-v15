@@ -69,7 +69,7 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 # ==========================================
 # BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (ƯU TIÊN HÀNG ĐẦU)
 # ==========================================
-st.subheader("🏁 Nơi bạn muốn đến.")
+st.subheader("🏁 1. Nơi bạn muốn đến")
 tim_kiem_den = st.text_input(
     "🔍 Nhập tên địa điểm, quán xá, bệnh viện...",
     placeholder="Ví dụ: Xe Máy Quốc Sự, Siêu thị BigC...",
@@ -101,65 +101,69 @@ if tim_kiem_den:
 st.divider()
 
 # ==========================================
-# BƯỚC 2: 📊 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
+# BƯỚC 2: 📊 THÔNG TIN CHUYẾN ĐI & CƯỚC PHÍ (ĐÓNG KHUNG KIỂU BILL)
 # ==========================================
-st.subheader("📊 Thông tin chuyến đi & Cước phí.")
-
 so_km = 0.0
 thoi_gian_phut = 0
 lat1, lon1 = None, None
 diem_don_text = "Vị trí GPS hiện tại của bạn"
 
-# Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
-cho_phep_gps = st.radio(
-    "📍  Cho phép sử dụng vị trí của bạn?",
-    options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
-    index=0,
-    horizontal=True,
-)
+# Dùng container có khung viền (border=True) để tạo cảm giác như tờ bill
+with st.container(border=True):
+    st.subheader("🧾 Chi Tiết Cước Phí Chuyến Đi")
 
-if cho_phep_gps.startswith("Có"):
-    loc = get_geolocation()
-    if loc and "coords" in loc:
-        lat1 = loc["coords"]["latitude"]
-        lon1 = loc["coords"]["longitude"]
-        st.success("💰 Sô tiền cần thanh toán.")
+    # Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
+    cho_phep_gps = st.radio(
+        "📍 Cho phép sử dụng vị trí của bạn?",
+        options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
+        index=0,
+        horizontal=True,
+    )
+
+    if cho_phep_gps.startswith("Có"):
+        loc = get_geolocation()
+        if loc and "coords" in loc:
+            lat1 = loc["coords"]["latitude"]
+            lon1 = loc["coords"]["longitude"]
+            st.success("✅ Đã bật định vị vị trí thành công!")
+        else:
+            st.info(
+                "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
+                " thông báo của trình duyệt."
+            )
     else:
-        st.info(
-            "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
-            " bảng thông báo của trình duyệt nếu có."
-        )
-else:
-    st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
+        st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
 
-if lat1 and lon1 and lat2 and lon2:
-    km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
-    if km_goc:
-        so_km = km_goc
-        thoi_gian_phut = round((so_km / 30) * 60)
-    else:
-        so_km = 3.0
-        thoi_gian_phut = round((so_km / 30) * 60)
+    if lat1 and lon1 and lat2 and lon2:
+        km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
+        if km_goc:
+            so_km = km_goc
+            thoi_gian_phut = round((so_km / 35) * 60)
+        else:
+            so_km = 3.0
+            thoi_gian_phut = round((so_km / 35) * 60)
 
-# Đơn giá cố định 5k/km
-DONG_GIA = 5000
-gia = so_km * DONG_GIA
+    # Đơn giá cố định 5k/km
+    DONG_GIA = 5000
+    gia = so_km * DONG_GIA
 
-# Hiển thị trực quan các ô thông tin ngang hàng
-col_a, col_b, col_c = st.columns(3)
-with col_a:
-    st.metric(label="📏 Quãng đường", value=f"{so_km} Km")
-with col_b:
-    st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} Phút")
-with col_c:
-    st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} VNĐ")
+    st.markdown("---")
+
+    # Hiển thị trực quan các ô thông tin ngang hàng trong khung bill
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.metric(label="📏 Quãng đường", value=f"{so_km} km")
+    with col_b:
+        st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
+    with col_c:
+        st.metric(label="💰 Tổng cước", value=f"{gia:,.0f} đ")
 
 st.divider()
 
 # ==========================================
 # BƯỚC 3: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
 # ==========================================
-HOTLINE = "0978666620"  # Ní thay SĐT của chú bác tài xế vào đây
+HOTLINE = "0901234567"  # Ní thay SĐT của chú bác tài xế vào đây
 
 if diem_den_chon and lat1 and lon1 and so_km > 0:
     maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den_chon)}&travelmode=driving"
