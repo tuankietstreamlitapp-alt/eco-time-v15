@@ -18,68 +18,39 @@ st.markdown(
 )
 
 
-# 1. Hàm tìm kiếm chuẩn xác: Giữ nguyên từ khóa, khóa vùng Việt Nam/Đồng Nai
-def lay_danh_sach_goi_y(dia_chi):
+# 1. Hàm tìm tọa độ ngầm: Tự động lấy kết quả tốt nhất dựa trên từ khóa người gõ
+def lay_toa_do_diem_den(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
-        return []
+        return None, None
 
-    # Giữ nguyên vẹn những gì ní gõ, tự động gán thêm Đồng Nai để khoanh vùng
     clean_query = dia_chi.strip()
     if "đồng nai" not in clean_query.lower():
         clean_query += ", Đồng Nai, Việt Nam"
 
-    danh_sach = []
+    # Thử tìm bằng Nominatim trước
     try:
-        # Dùng Nominatim giới hạn phạm vi quốc gia Việt Nam (countrycodes=vn) tránh lệch tỉnh
-        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_query)}&format=json&countrycodes=vn&limit=5"
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_query)}&format=json&countrycodes=vn&limit=1"
         res = requests.get(
             url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=5
         ).json()
-
         if res:
-            for item in res:
-                display_name = item.get("display_name", "")
-                lat = float(item.get("lat"))
-                lon = float(item.get("lon"))
-                ket_qua = {"label": display_name, "lat": lat, "lon": lon}
-                if ket_qua not in danh_sach:
-                    danh_sach.append(ket_qua)
+            return float(res[0].get("lat")), float(res[0].get("lon"))
     except Exception:
         pass
 
-    # Fallback sang Photon nếu cần quét bổ sung
-    if not danh_sach:
-        try:
-            url_photon = f"https://photon.komoot.io/api/?q={urllib.parse.quote(clean_query)}&limit=5"
-            res_p = requests.get(
-                url_photon, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
-            ).json()
-            if res_p.get("features"):
-                for item in res_p["features"]:
-                    props = item.get("properties", {})
-                    name = props.get("name", "")
-                    street = props.get("street", "")
-                    district = props.get(
-                        "district", props.get("county", "")
-                    )
-                    city = props.get("city", "")
-                    chi_tiet = ", ".join(
-                        filter(None, [name, street, district, city])
-                    )
-                    if not chi_tiet:
-                        chi_tiet = clean_query
-                    coords = item["geometry"]["coordinates"]
-                    ket_qua = {
-                        "label": chi_tiet,
-                        "lat": coords[1],
-                        "lon": coords[0],
-                    }
-                    if ket_qua not in danh_sach:
-                        danh_sach.append(ket_qua)
-        except Exception:
-            pass
+    # Fallback sang Photon nếu cần
+    try:
+        url_photon = f"https://photon.komoot.io/api/?q={urllib.parse.quote(clean_query)}&limit=1"
+        res_p = requests.get(
+            url_photon, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
+        ).json()
+        if res_p.get("features"):
+            coords = res_p["features"][0]["geometry"]["coordinates"]
+            return coords[1], coords[0]
+    except Exception:
+        pass
 
-    return danh_sach
+    return None, None
 
 
 # 2. Hàm tính km chuẩn xác sát thực tế (Khớp Google Maps)
@@ -96,36 +67,26 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 
 
 # ==========================================
-# BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (ƯU TIÊN HÀNG ĐẦU)
+# BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (TỰ DO, KHÔNG CẦN CHỌN LẠI)
 # ==========================================
 st.subheader("🏁 Nơi bạn muốn đến")
-tim_kiem_den = st.text_input(
-    "🔍 Nhập tên địa điểm, quán xá, bệnh viện...",
-    placeholder="Ví dụ: Xe Máy Quốc Sự, Siêu thị BigC...",
+diem_den_chon = st.text_input(
+    "🔍 Nhập tên địa điểm, quán xá, số nhà, tên đường...",
+    placeholder="Ví dụ: 9a Nguyễn Khuyến Trảng Dài, Siêu thị BigC...",
 )
 
 lat2, lon2 = None, None
-diem_den_chon = ""
 
-if tim_kiem_den:
-    with st.spinner("⏳ Đang tìm kiếm các địa điểm phù hợp..."):
-        ds_goc = lay_danh_sach_goi_y(tim_kiem_den)
-
-    if ds_goc:
-        lua_chon_labels = [item["label"] for item in ds_goc]
-        chon_diem = st.selectbox(
-            "🎯 Chọn chính xác kết quả đúng nhất trong danh sách:",
-            lua_chon_labels,
-        )
-        for item in ds_goc:
-            if item["label"] == chon_diem:
-                lat2, lon2 = item["lat"], item["lon"]
-                diem_den_chon = item["label"]
-                break
-    else:
-        st.warning(
-            "⚠️ Không tìm thấy địa điểm, vui lòng gõ rõ hơn tên đường hoặc khu vực."
-        )
+if diem_den_chon and len(diem_den_chon.strip()) >= 2:
+    with st.spinner("⏳ Đang định vị điểm đến trên bản đồ..."):
+        lat2, lon2 = lay_toa_do_diem_den(diem_den_chon)
+        if lat2 and lon2:
+            st.success("✅ Đã xác định thành công điểm đến!")
+        else:
+            st.warning(
+                "⚠️ Không tìm thấy tọa độ chính xác, app sẽ tính cước tạm tính"
+                " hoặc bạn có thể gõ rõ tên đường hơn."
+            )
 
 st.divider()
 
@@ -165,10 +126,10 @@ with st.container(border=True):
         km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
         if km_goc:
             so_km = km_goc
-            thoi_gian_phut = round((so_km / 27) * 60)
+            thoi_gian_phut = round((so_km / 30) * 60)
         else:
             so_km = 3.0
-            thoi_gian_phut = round((so_km / 27) * 60)
+            thoi_gian_phut = round((so_km / 30) * 60)
 
     DONG_GIA = 5000
     gia = so_km * DONG_GIA
