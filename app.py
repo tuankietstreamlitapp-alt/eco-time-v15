@@ -5,11 +5,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
-# GIAO DIỆN XEOM4560 — Bản tối ưu thực chiến chống F5 & Ngủ màn hình
+# GIAO DIỆN 4567 XE ÔM — Bản chuẩn có Logo, Chống F5 & Wake Lock
 # ============================================================
 
 st.markdown(
@@ -28,13 +28,6 @@ st.markdown(
         color: white;
         margin-bottom: 18px;
         box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
-    }
-
-    .app-brand {
-        font-size: 30px;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        margin: 0;
     }
 
     .app-subtitle {
@@ -117,16 +110,27 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    """
-    <div class="app-header">
-        <div class="app-brand">🛵 Xeom4560</div>
-        <div class="app-subtitle">Chống F5 • Giữ màn hình sáng • Minh bạch cước phí</div>
-        <div class="status-pill">● Bảo vệ hành trình Real-time Active</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# Hiển thị Logo và Tiêu đề Header
+col_logo, col_text = st.columns([1, 3])
+with col_logo:
+    try:
+        st.image("logo.png", width=110)
+    except Exception:
+        st.write("🛵 4567")
+
+with col_text:
+    st.markdown(
+        """
+        <div class="app-header" style="margin-bottom: 0px; padding: 16px 20px;">
+            <div style="font-size: 24px; font-weight: 800; color: white; margin: 0;">4567 XE ÔM</div>
+            <div class="app-subtitle">Chống F5 • Giữ màn hình sáng • Xã hội xanh</div>
+            <div class="status-pill">● Hoạt động Real-time Active</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.write("")
 
 # ============================================================
 # CẤU HÌNH & TRẠNG THÁI CUỐC XE
@@ -136,7 +140,7 @@ DONG_GIA = 5000              # VNĐ / km
 HOTLINE = "0978666620"
 ZALO_URL = f"https://zalo.me/{HOTLINE}"
 
-GPS_ACCURACY_MAX_M = 60      # Nới lỏng nhẹ để bắt tín hiệu tốt trong hẻm
+GPS_ACCURACY_MAX_M = 60      # Sai số GPS tối đa cho phép
 MIN_MOVE_M = 4               # Ngưỡng dịch chuyển tối thiểu (mét)
 
 # Kiểm tra nếu có request dừng cuốc từ JavaScript trả về qua query params
@@ -185,14 +189,14 @@ def format_fare(total_m):
     return round((total_m / 1000.0) * DONG_GIA)
 
 # ============================================================
-# GIAO DIỆN ĐIỀU KHIỂN & TRÌNH THEO DÕI GPS (CÓ CHỐNG F5 & WAKE LOCK)
+# GIAO DIỆN ĐIỀU KHIỂN & TRÌNH THEO DÕI GPS
 # ============================================================
 
 col_title, col_refresh = st.columns([8, 1])
 with col_title:
     st.markdown('<div class="section-title">🏁 Điều khiển cuốc xe</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="section-desc">Tự động chống treo máy và lưu trữ dữ liệu khi F5.</div>',
+        '<div class="section-desc">Tự động chống treo máy và lưu trữ dữ liệu an toàn khi F5.</div>',
         unsafe_allow_html=True,
     )
 with col_refresh:
@@ -209,7 +213,7 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         <div class="section-card">
             <div class="section-title">🚦 Sẵn sàng nhận cuốc</div>
             <div class="section-desc">
-                Bấm nút bắt đầu bên dưới. Màn hình điện thoại sẽ được giữ sáng và tự động lưu chống mất dữ liệu.
+                Bấm nút bắt đầu bên dưới. Màn hình điện thoại sẽ được giữ sáng và tự động bảo vệ dữ liệu hành trình.
             </div>
         </div>
         """,
@@ -246,7 +250,6 @@ elif st.session_state.trip_active:
         unsafe_allow_html=True,
     )
 
-    # Nhúng JavaScript thông minh: Hỗ trợ WatchPosition + Wake Lock API + LocalStorage khôi phục F5
     html_live_tracker = f"""
     <div style="font-family: sans-serif; padding: 20px; background: #ffffff; border-radius: 18px; border: 1px solid #e2e8f0; box-shadow: 0 6px 20px rgba(15,23,42,.06); text-align: center;">
         <div style="background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%); border: 1px solid #dbeafe; border-radius: 18px; padding: 18px; margin-bottom: 16px;">
@@ -286,15 +289,12 @@ elif st.session_state.trip_active:
 
     let lastLat = null;
     let lastLon = null;
-    
-    // Khôi phục quãng đường từ localStorage nếu F5 nhầm
     let totalMeters = parseFloat(localStorage.getItem("xeom_total_meters") || "0.0");
     
     const dongGia = {DONG_GIA};
     const maxAccuracy = {GPS_ACCURACY_MAX_M};
     const minMove = {MIN_MOVE_M};
 
-    // Cập nhật giao diện ngay khi load từ bộ nhớ tạm
     if (totalMeters > 0) {{
         let km = totalMeters / 1000.0;
         let fare = km * dongGia;
@@ -303,7 +303,6 @@ elif st.session_state.trip_active:
         document.getElementById("price").innerText = Math.round(fare).toLocaleString('vi-VN') + " VNĐ";
     }}
 
-    // Kích hoạt Wake Lock API để giữ màn hình điện thoại không bị tắt nguồn/ngủ đông
     let wakeLock = null;
     async function requestWakeLock() {{
         try {{
@@ -320,7 +319,6 @@ elif st.session_state.trip_active:
     }}
     requestWakeLock();
 
-    // Tự động xin lại Wake Lock nếu người dùng chuyển tab rồi quay lại
     document.addEventListener("visibilitychange", async () => {{
         if (wakeLock !== null && document.visibilityState === "visible") {{
             await requestWakeLock();
@@ -337,7 +335,7 @@ elif st.session_state.trip_active:
                 document.getElementById("debug_acc").innerText = "Sai số GPS: ±" + acc.toFixed(1) + " m";
 
                 if (acc > maxAccuracy) {{
-                    return; // Bỏ qua điểm sai số quá lớn
+                    return;
                 }}
 
                 if (lastLat === null || lastLon === null) {{
@@ -352,7 +350,6 @@ elif st.session_state.trip_active:
                     lastLat = lat;
                     lastLon = lon;
                     
-                    // Lưu liên tục vào localStorage chống mất khi F5
                     localStorage.setItem("xeom_total_meters", totalMeters);
                     
                     let km = totalMeters / 1000.0;
@@ -377,7 +374,6 @@ elif st.session_state.trip_active:
     }}
 
     function stopTrip() {{
-        // Xóa bộ nhớ tạm sau khi thanh toán xong
         localStorage.removeItem("xeom_total_meters");
         if (wakeLock !== null) {{
             wakeLock.release().catch(() => {{}});
@@ -393,7 +389,6 @@ if not st.session_state.trip_active and st.session_state.trip_ended_at:
     km = format_km(st.session_state.trip_total_m)
     fare = format_fare(st.session_state.trip_total_m)
 
-    # Hiệu ứng pháo giấy ăn mừng hoàn thành cuốc xe
     st.markdown(
         """
         <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -426,7 +421,7 @@ if not st.session_state.trip_active and st.session_state.trip_ended_at:
     with c:
         st.metric("💵 Tổng cước", f"{fare:,.0f} VNĐ")
 
-    st.success("✅ Đã thanh toán thành công! Cảm ơn khách hàng đã ủng hộ Đội Xeom4560.")
+    st.success("✅ Đã thanh toán thành công! Cảm ơn khách hàng đã ủng hộ Đội 4567 Xe Ôm.")
 
     if st.button("♻️  BẮT ĐẦU CUỐC MỚI", use_container_width=True):
         reset_trip()
@@ -461,7 +456,7 @@ st.markdown(
     f"""
     <div class="footer-note">
         🛡️ Chống F5 LocalStorage • Khóa màn hình WakeLock Active<br>
-        Xeom4560 • Giải pháp vận chuyển thông minh cho tài xế Việt.
+        4567 Xe Ôm • Lan tỏa giá trị lao động chân chính và xã hội xanh.
     </div>
     """,
     unsafe_allow_html=True,
