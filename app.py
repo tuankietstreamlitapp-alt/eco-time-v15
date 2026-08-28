@@ -135,10 +135,10 @@ with st.container(border=True):
         km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
         if km_goc:
             so_km = km_goc
-            thoi_gian_phut = round((so_km / 35) * 60)
+            thoi_gian_phut = round((so_km / 30) * 60)
         else:
             so_km = 3.0
-            thoi_gian_phut = round((so_km / 35) * 60)
+            thoi_gian_phut = round((so_km / 30) * 60)
 
     # Đơn giá cố định 5k/km
     DONG_GIA = 5000
@@ -149,11 +149,11 @@ with st.container(border=True):
     # Hiển thị trực quan các ô thông tin ngang hàng trong khung bill
     col_a, col_b, col_c = st.columns(3)
     with col_a:
-        st.metric(label="📏 Quãng đường", value=f"{so_km} km")
+        st.metric(label="📏 Quãng đường", value=f"{so_km} Km")
     with col_b:
-        st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
+        st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} Phút")
     with col_c:
-        st.metric(label="💰 Tổng cước", value=f"{gia:,.0f} đ")
+        st.metric(label="💰 Tổng cước", value=f"{gia:,.0f} VNĐ")
 
 st.divider()
 
