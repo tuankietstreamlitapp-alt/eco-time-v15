@@ -7,12 +7,17 @@ st.set_page_config(
     page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
 )
 
-st.title("🛵 Đội Xe Ôm Tin Cẩn (45–60)")
+# Căn giữa toàn bộ phần tiêu đề và khẩu hiệu
 st.markdown(
-    "<h3 align='center' style='color: gray; font-size: 18px;'>Minh bạch -"
-    " An toàn - Nhanh chóng - Tiện lợi</h3>",
+    """
+    <div style="text-align: center;">
+        <h2>🛵 Đội Xe Ôm Tin Cẩn (45–60)</h2>
+        <p style="color: gray; font-size: 16px;">Minh bạch - An toàn - Nhanh chóng - Tiện lợi</p>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
+
 st.divider()
 
 
