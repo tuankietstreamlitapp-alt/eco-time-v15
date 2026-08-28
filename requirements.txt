@@ -1,3 +1,8 @@
 streamlit
 requests
 streamlit-js-eval
+streamlit
+pandas
+gspread
+google-auth
+requests
