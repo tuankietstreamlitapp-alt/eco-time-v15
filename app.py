@@ -9,8 +9,6 @@ st.set_page_config(
     page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
 )
 
-live_gps_tracker()
-
 # ============================================================
 # GIAO DIỆN XEOM4560 — phong cách hiện đại, sạch, dễ bấm
 # ============================================================
@@ -380,6 +378,10 @@ def live_gps_tracker():
             "📍 Đang chờ vị trí GPS đầu tiên... "
             "Hãy cho phép trình duyệt truy cập vị trí."
         )
+
+
+# Mount GPS tracker only AFTER the function has been defined.
+live_gps_tracker()
 
 
 # ============================================================
