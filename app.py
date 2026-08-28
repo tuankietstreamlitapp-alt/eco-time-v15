@@ -59,7 +59,7 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 
 
 # ==========================================
-# PHẦN 1: 🔍 NHẬP ĐIỂM ĐẾN (ĐÃ ĐƯA LÊN TRÊN CÙNG)
+# BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (ƯU TIÊN HÀNG ĐẦU)
 # ==========================================
 st.subheader("🏁 1. Nơi bạn muốn đến")
 tim_kiem_den = st.text_input(
@@ -93,7 +93,7 @@ if tim_kiem_den:
 st.divider()
 
 # ==========================================
-# PHẦN 2: 📍 VỊ TRÍ ĐÓN (LÙI XUỐNG PHÍA DƯỚI)
+# BƯỚC 2: 📍 VỊ TRÍ ĐÓN (ĐÃ ĐƯA XUỐNG SAU KHI CHỌN ĐIỂM ĐẾN)
 # ==========================================
 st.subheader("📍 2. Vị trí đón của bạn")
 dung_gps = st.checkbox(
@@ -134,7 +134,7 @@ else:
 st.divider()
 
 # ==========================================
-# PHẦN 3: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ NỔI BẬT
+# BƯỚC 3: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
 # ==========================================
 st.subheader("📊 3. Thông tin chuyến đi & Cước phí")
 
@@ -166,7 +166,7 @@ with col_c:
 st.divider()
 
 # ==========================================
-# PHẦN 4: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
+# BƯỚC 4: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
 # ==========================================
 HOTLINE = "0901234567"  # Ní thay SĐT của chú bác tài xế vào đây
 
@@ -196,5 +196,5 @@ if diem_den_chon and lat1 and lon1 and so_km > 0:
         )
 else:
     st.info(
-        "💡 Vui lòng nhập điểm đến và đảm bảo đã bật vị trí đón để hiển thị nút đặt xe."
+        "💡 Vui lòng nhập điểm đến và đảm bảo đã xác định vị trí đón để hiển thị nút đặt xe."
     )
