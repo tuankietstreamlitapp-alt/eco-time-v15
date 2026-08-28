@@ -72,17 +72,46 @@ def lay_toa_do_diem_den(dia_chi):
     return None, None
 
 
-# 2. Tính quãng đường bằng OSRM (không cần Google Cloud/API key)
+# 2. Tính quãng đường bằng OSRM + hệ số an toàn để hạn chế app bị thiếu km
+# Lưu ý: OSRM không phải Google Maps nên không thể cam kết trùng 100%.
+# Hệ số này được đặt 10% dựa trên trường hợp test 21.82 km so với ~23.9-24 km của Google Maps.
+HE_SO_AN_TOAN_CUOC = 1.10
+
+
+def lam_tron_len_0_1(km):
+    return round((km + 0.099999) * 10) / 10
+
+
 def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
     try:
-        url = f"https://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
-        res = requests.get(url, timeout=5).json()
-        if "routes" in res and len(res["routes"]) > 0:
-            met = res["routes"][0]["distance"]
-            return round(met / 1000.0, 2)
+        url = (
+            f"https://router.project-osrm.org/route/v1/driving/"
+            f"{lon1},{lat1};{lon2},{lat2}"
+            f"?overview=false&alternatives=true"
+        )
+        res = requests.get(url, timeout=7).json()
+
+        routes = res.get("routes", [])
+        if not routes:
+            return None
+
+        # Lấy tuyến cơ sở và, nếu có, tuyến thay thế dài hơn.
+        distances_km = [
+            float(route.get("distance", 0)) / 1000.0
+            for route in routes
+            if route.get("distance") is not None
+        ]
+        if not distances_km:
+            return None
+
+        km_osrm = max(distances_km)
+
+        # Hệ số an toàn chỉ dùng để hạn chế thu thiếu khi dữ liệu OSRM ngắn hơn thực tế.
+        km_tinh_cuoc = max(km_osrm, distances_km[0] * HE_SO_AN_TOAN_CUOC)
+
+        return lam_tron_len_0_1(km_tinh_cuoc)
     except Exception:
-        pass
-    return None
+        return None
 
 
 # ==========================================
@@ -97,7 +126,7 @@ diem_den_chon = st.text_input(
 lat2, lon2 = None, None
 
 if diem_den_chon and len(diem_den_chon.strip()) >= 2:
-    with st.spinner("⏳ Đang tìm địa điểm..."):
+    with st.spinner("⏳ Đang tìm địa điểm và đối chiếu tuyến..."):
         lat2, lon2 = lay_toa_do_diem_den(diem_den_chon)
         if lat2 and lon2:
             st.success("✅ Đã tìm thấy điểm đến!")
@@ -164,6 +193,11 @@ with st.container(border=True):
     with col_c:
         st.metric(label="💰 Tổng cước", value=f"{gia:,.0f} VNĐ")
 
+    st.caption(
+        f"ℹ️ Km tính cước đã cộng biên độ an toàn {round((HE_SO_AN_TOAN_CUOC - 1) * 100)}% "
+        "để hạn chế sai số so với tuyến thực tế."
+    )
+
 st.divider()
 
 # ==========================================
@@ -172,7 +206,7 @@ st.divider()
 HOTLINE = "0978666620"
 
 if diem_den_chon and lat1 and lon1 and so_km > 0:
-    maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den_chon)}&travelmode=driving"
+    maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den_chon)}&travelmode=two-wheeler"
 
     st.markdown(
         f"🧭 **Chỉ đường cho Tài Xế:** [Mở Google Maps]({maps_url})"
