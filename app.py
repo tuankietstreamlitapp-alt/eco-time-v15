@@ -19,69 +19,145 @@ st.markdown(
 )
 
 
-# 1. Hàm bóc tách và định vị chuẩn 100% theo định dạng Google Maps
-def lay_toa_do_diem_den(dia_chi):
-    if not dia_chi or len(dia_chi.strip()) < 2:
-        return None, None
+# =========================================================
+# CẤU HÌNH GOOGLE MAPS
+# Streamlit Cloud/local: tạo .streamlit/secrets.toml với:
+# GOOGLE_MAPS_API_KEY = "YOUR_API_KEY"
+# Bật ít nhất: Places API (New) + Routes API
+# =========================================================
 
-    raw_query = dia_chi.strip()
-
-    # Loại bỏ mã bưu chính (ví dụ: các số 5 chữ số như 81000, 70000...) thường có trong copy của Google Maps
-    query_no_postal = re.sub(r"\b\d{5}\b", "", raw_query)
-    query_clean = (
-        re.sub(r"\s+", " ", query_no_postal).replace(" ,", ",").strip()
-    )
-
-    # Tạo danh sách các cách thử truy vấn từ chi tiết đến ngắn gọn để vét cạn kết quả chuẩn Google Maps
-    queries_to_try = [query_clean, raw_query]
-
-    # Tách lấy phần cốt lõi (Số nhà + Tên đường + Phường/Khu vực) nếu địa chỉ quá dài
-    parts = [p.strip() for p in query_clean.split(",")]
-    if len(parts) >= 3:
-        short_query = f"{parts[0]}, {parts[1]}, Đồng Nai, Việt Nam"
-        queries_to_try.append(short_query)
-
-    for q in queries_to_try:
-        if not q:
-            continue
-        q_full = q if "đồng nai" in q.lower() else f"{q}, Đồng Nai, Việt Nam"
-
-        # Thử tìm bằng Nominatim (OpenStreetMap)
-        try:
-            url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(q_full)}&format=json&countrycodes=vn&limit=1"
-            res = requests.get(
-                url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=4
-            ).json()
-            if res:
-                return float(res[0].get("lat")), float(res[0].get("lon"))
-        except Exception:
-            pass
-
-        # Thử tìm bằng Photon dự phòng
-        try:
-            url_p = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q_full)}&limit=1"
-            res_p = requests.get(
-                url_p, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=4
-            ).json()
-            if res_p.get("features"):
-                coords = res_p["features"][0]["geometry"]["coordinates"]
-                return coords[1], coords[0]
-        except Exception:
-            pass
-
-    return None, None
-
-
-# 2. Hàm tính km chuẩn xác sát thực tế (Khớp Google Maps)
-def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
+# 1. Google Maps Places API (New): tìm đúng địa điểm theo dữ liệu Google
+def get_google_api_key():
     try:
-        url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
-        res = requests.get(url, timeout=5).json()
-        if "routes" in res and len(res["routes"]) > 0:
-            met = res["routes"][0]["distance"]
-            return round(met / 1000.0, 2)
+        return st.secrets.get("GOOGLE_MAPS_API_KEY", "")
     except Exception:
-        pass
+        return ""
+
+
+def tim_diem_den_google_maps(dia_chi, lat_bias=None, lon_bias=None):
+    """Tìm địa điểm bằng Google Places Text Search (New)."""
+    if not dia_chi or len(dia_chi.strip()) < 2:
+        return None
+
+    api_key = get_google_api_key()
+    if not api_key:
+        st.error("❌ Chưa cấu hình GOOGLE_MAPS_API_KEY trong Streamlit Secrets.")
+        return None
+
+    query = dia_chi.strip()
+    if "việt nam" not in query.lower() and "vietnam" not in query.lower():
+        query = f"{query}, Việt Nam"
+
+    payload = {
+        "textQuery": query,
+        "languageCode": "vi",
+        "regionCode": "VN",
+        "pageSize": 5,
+    }
+
+    # Ưu tiên địa điểm gần vị trí đón hiện tại, nhưng vẫn để Google xếp hạng
+    # theo mức độ phù hợp của truy vấn.
+    if lat_bias is not None and lon_bias is not None:
+        payload["locationBias"] = {
+            "circle": {
+                "center": {"latitude": float(lat_bias), "longitude": float(lon_bias)},
+                "radius": 50000.0,
+            }
+        }
+
+    try:
+        res = requests.post(
+            "https://places.googleapis.com/v1/places:searchText",
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
+            },
+            json=payload,
+            timeout=8,
+        )
+        res.raise_for_status()
+        data = res.json()
+        places = data.get("places", [])
+        if not places:
+            return None
+
+        place = places[0]
+        loc = place.get("location", {})
+        if "latitude" not in loc or "longitude" not in loc:
+            return None
+
+        return {
+            "place_id": place.get("id"),
+            "name": place.get("displayName", {}).get("text", ""),
+            "address": place.get("formattedAddress", query),
+            "lat": float(loc["latitude"]),
+            "lon": float(loc["longitude"]),
+        }
+    except requests.RequestException as e:
+        st.error(f"❌ Google Places API lỗi: {e}")
+    except Exception as e:
+        st.error(f"❌ Không đọc được kết quả Google Maps: {e}")
+    return None
+
+
+# 2. Google Maps Routes API: tính quãng đường/tgian theo tuyến xe 2 bánh
+def tinh_route_google_maps(lat1, lon1, lat2, lon2):
+    """Dùng Google Routes API với TWO_WHEELER cho xe máy."""
+    api_key = get_google_api_key()
+    if not api_key:
+        return None
+
+    payload = {
+        "origin": {
+            "location": {
+                "latLng": {"latitude": float(lat1), "longitude": float(lon1)}
+            }
+        },
+        "destination": {
+            "location": {
+                "latLng": {"latitude": float(lat2), "longitude": float(lon2)}
+            }
+        },
+        "travelMode": "TWO_WHEELER",
+        "routingPreference": "TRAFFIC_AWARE",
+    }
+
+    try:
+        res = requests.post(
+            "https://routes.googleapis.com/directions/v2:computeRoutes",
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.staticDuration",
+            },
+            json=payload,
+            timeout=10,
+        )
+        res.raise_for_status()
+        data = res.json()
+        routes = data.get("routes", [])
+        if not routes:
+            return None
+
+        route = routes[0]
+        distance_m = route.get("distanceMeters")
+        duration_text = route.get("duration") or route.get("staticDuration")
+        if distance_m is None:
+            return None
+
+        # Google duration trả về dạng "123s".
+        phut = None
+        if duration_text:
+            m = re.match(r"^(\d+(?:\.\d+)?)s$", duration_text)
+            if m:
+                phut = round(float(m.group(1)) / 60)
+
+        return round(float(distance_m) / 1000.0, 2), phut
+    except requests.RequestException as e:
+        st.error(f"❌ Google Routes API lỗi: {e}")
+    except Exception as e:
+        st.error(f"❌ Không đọc được tuyến Google Maps: {e}")
     return None
 
 
@@ -95,17 +171,21 @@ diem_den_chon = st.text_input(
 )
 
 lat2, lon2 = None, None
+diem_den_google = None
 
 if diem_den_chon and len(diem_den_chon.strip()) >= 2:
-    with st.spinner("⏳ Đang đồng bộ tọa độ chuẩn từ Google Maps..."):
-        lat2, lon2 = lay_toa_do_diem_den(diem_den_chon)
-        if lat2 and lon2:
-            st.success("✅ Đã tìm thấy tọa độ chính xác!")
+    with st.spinner("⏳ Đang tìm địa điểm trên Google Maps..."):
+        # Nếu đã có GPS thì dùng GPS làm location bias để Google ưu tiên kết quả gần tài xế.
+        bias_lat = locals().get("lat1")
+        bias_lon = locals().get("lon1")
+        diem_den_google = tim_diem_den_google_maps(diem_den_chon, bias_lat, bias_lon)
+        if diem_den_google:
+            lat2 = diem_den_google["lat"]
+            lon2 = diem_den_google["lon"]
+            diem_den_chon = diem_den_google["address"]
+            st.success(f"✅ Google Maps: {diem_den_google['name'] or diem_den_google['address']}")
         else:
-            st.warning(
-                "⚠️ Không tìm thấy tọa độ chính xác, vui lòng kiểm tra lại tên"
-                " đường hoặc số nhà."
-            )
+            st.warning("⚠️ Google Maps không tìm thấy địa điểm phù hợp. Vui lòng nhập tên/địa chỉ rõ hơn.")
 
 st.divider()
 
@@ -142,13 +222,13 @@ with st.container(border=True):
         st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
 
     if lat1 and lon1 and lat2 and lon2:
-        km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
-        if km_goc:
-            so_km = km_goc
-            thoi_gian_phut = round((so_km / 30) * 60)
+        route_google = tinh_route_google_maps(lat1, lon1, lat2, lon2)
+        if route_google:
+            so_km, phut_google = route_google
+            thoi_gian_phut = phut_google if phut_google is not None else round((so_km / 30) * 60)
         else:
-            so_km = 3.0
-            thoi_gian_phut = round((so_km / 30) * 60)
+            so_km = 0.0
+            thoi_gian_phut = 0
 
     DONG_GIA = 5000
     gia = so_km * DONG_GIA
