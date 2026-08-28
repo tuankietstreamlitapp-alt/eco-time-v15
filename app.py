@@ -140,11 +140,11 @@ gia = so_km * DONG_GIA
 # Hiển thị trực quan các ô thông tin ngang hàng
 col_a, col_b, col_c = st.columns(3)
 with col_a:
-    st.metric(label="📏 Quãng đường", value=f"{so_km} km")
+    st.metric(label="📏 Quãng đường", value=f"{so_km} Km")
 with col_b:
-    st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} phút")
+    st.metric(label="⏱️ Thời gian", value=f"~{thoi_gian_phut} Phút")
 with col_c:
-    st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
+    st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} VNĐ")
 
 st.divider()
 
