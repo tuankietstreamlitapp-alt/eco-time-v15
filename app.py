@@ -61,7 +61,7 @@ def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
 # ==========================================
 # BƯỚC 1: 🔍 NHẬP ĐIỂM ĐẾN (ƯU TIÊN HÀNG ĐẦU)
 # ==========================================
-st.subheader("🏁 1. Nơi bạn muốn đến")
+st.subheader("🏁 Nơi bạn muốn đến")
 tim_kiem_den = st.text_input(
     "🔍 Nhập tên địa điểm, quán xá, bệnh viện...",
     placeholder="Ví dụ: Xe Máy Quốc Sự, Siêu thị BigC...",
@@ -95,7 +95,7 @@ st.divider()
 # ==========================================
 # BƯỚC 2: 📊 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
 # ==========================================
-st.subheader("📊 2. Thông tin chuyến đi & Cước phí")
+st.subheader("📊 Thông tin chuyến đi & Cước phí")
 
 so_km = 0.0
 thoi_gian_phut = 0
@@ -104,8 +104,8 @@ diem_don_text = "Vị trí GPS hiện tại của bạn"
 
 # Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
 cho_phep_gps = st.radio(
-    "📍 Cho phép sử dụng vị trí của bạn?",
-    options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
+    "📍 Tự động lấy vị trí đón",
+    options=["Có (Lấy vị trí)", "Không (Lấy vị trí)"],
     index=0,
     horizontal=True,
 )
@@ -115,23 +115,23 @@ if cho_phep_gps.startswith("Có"):
     if loc and "coords" in loc:
         lat1 = loc["coords"]["latitude"]
         lon1 = loc["coords"]["longitude"]
-        st.success("✅ Đã bật định vị vị trí thành công!")
+        st.success("✅ Đã vị trí đón thành công!")
     else:
         st.info(
             "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
             " bảng thông báo của trình duyệt nếu có."
         )
 else:
-    st.warning("⚠️ Bạn đã tắt tính năng định vị vị trí.")
+    st.warning("⚠️ Bạn đã tắt tính năng vị trí.")
 
 if lat1 and lon1 and lat2 and lon2:
     km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
     if km_goc:
         so_km = km_goc
-        thoi_gian_phut = round((so_km / 35) * 60)
+        thoi_gian_phut = round((so_km / 30) * 60)
     else:
         so_km = 3.0
-        thoi_gian_phut = round((so_km / 35) * 60)
+        thoi_gian_phut = round((so_km / 30) * 60)
 
 # Đơn giá cố định 5k/km
 DONG_GIA = 5000
@@ -151,7 +151,7 @@ st.divider()
 # ==========================================
 # BƯỚC 3: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
 # ==========================================
-HOTLINE = "0901234567"  # Ní thay SĐT của chú bác tài xế vào đây
+HOTLINE = "0978666620"  # Ní thay SĐT của chú bác tài xế vào đây
 
 if diem_den_chon and lat1 and lon1 and so_km > 0:
     maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den_chon)}&travelmode=driving"
