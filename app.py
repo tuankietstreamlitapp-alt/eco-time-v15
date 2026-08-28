@@ -11,7 +11,8 @@ st.set_page_config(
 st.markdown(
     """
     <div style="text-align: center;">
-        <h2>🛵 Đội Xe Ôm Tin Cẩn (45–60)</h2>
+       
+        <p style="color: gray; font-size: 16px;"🛵 Đội Xe Ôm Tin Cẩn (45–60)</p>
         <p style="color: gray; font-size: 16px;">Minh bạch - An toàn - Nhanh chóng - Tiện lợi</p>
     </div>
     """,
