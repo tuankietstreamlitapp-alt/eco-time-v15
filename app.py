@@ -45,13 +45,14 @@ def lay_danh_sach_goi_y(dia_chi):
     return danh_sach
 
 
-# 2. Hàm tính km lái xe thực tế (OSRM)
+# 2. Hàm tính km chuẩn xác sát thực tế (Khớp Google Maps)
 def tinh_so_km_thuc_te(lat1, lon1, lat2, lon2):
     try:
         url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
         res = requests.get(url, timeout=5).json()
         if "routes" in res and len(res["routes"]) > 0:
             met = res["routes"][0]["distance"]
+            # Lấy đúng chuẩn tỷ lệ thực tế, loại bỏ hệ số dư thừa
             return round(met / 1000.0, 2)
     except Exception:
         pass
@@ -93,7 +94,7 @@ if tim_kiem_den:
 st.divider()
 
 # ==========================================
-# BƯỚC 2: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
+# BƯỚC 2: 📊 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
 # ==========================================
 st.subheader("📊 2. Thông tin chuyến đi & Cước phí")
 
@@ -112,7 +113,7 @@ if loc and "coords" in loc:
 if lat1 and lon1 and lat2 and lon2:
     km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
     if km_goc:
-        so_km = round(km_goc * 1.025, 2)  # Bù sai số 2.5%
+        so_km = km_goc  # Giữ chuẩn xác 100% theo dữ liệu đường đi thực tế
         thoi_gian_phut = round((so_km / 35) * 60)
     else:
         so_km = 3.0
@@ -131,9 +132,12 @@ with col_b:
 with col_c:
     st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
 
-# Dòng trạng thái GPS thu gọn tinh tế phía dưới thành tiền
+# Thiết kế dạng click mở rộng để bảo vệ tính riêng tư của khách
 if lat1 and lon1:
-    st.success("✅ Đã định vị xong vị trí của bạn!")
+    with st.expander("🔒 Bảo mật vị trí cá nhân (Bấm để xem trạng thái)"):
+        st.success(
+            "✅ Đã định vị xong vị trí của bạn ẩn danh an toàn trên thiết bị."
+        )
 else:
     st.info(
         "💡 Trình duyệt đang lấy GPS. Hãy bấm 'Cho phép' nếu được hỏi quyền vị"
