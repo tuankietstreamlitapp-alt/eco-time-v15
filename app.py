@@ -1,4 +1,5 @@
 import re
+import math
 import urllib.parse
 import requests
 import streamlit as st
@@ -8,16 +9,155 @@ st.set_page_config(
     page_title="Đội Xe Ôm Tin Cẩn", page_icon="🛵", layout="centered"
 )
 
+# ============================================================
+# GIAO DIỆN XEOM4560 — phong cách hiện đại, sạch, dễ bấm
+# ============================================================
+
 st.markdown(
     """
-    <div style="text-align: center; background: linear-gradient(135deg, #fff3cd, #ffeeba); padding: 15px; border-radius: 12px; border: 1px solid #ffe8a1;">
-        <h2 style="color: #495057; margin-bottom: 5px; font-weight: bold;">🛵 Đội Xe Ôm Tin Cẩn (45–60)</h2>
-        <p style="color: #495057; font-size: 15px; font-weight: 500; margin: 0;">Minh bạch - An toàn - Nhanh chóng - Tiện lợi</p>
-    </div>
+    <style>
+    .block-container {
+        max-width: 760px;
+        padding-top: 1.0rem;
+        padding-bottom: 2rem;
+    }
+
+    .app-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        padding: 22px 24px;
+        border-radius: 20px;
+        color: white;
+        margin-bottom: 18px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+    }
+
+    .app-brand {
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin: 0;
+    }
+
+    .app-subtitle {
+        margin: 6px 0 0 0;
+        color: #cbd5e1;
+        font-size: 14px;
+    }
+
+    .status-pill {
+        display: inline-block;
+        margin-top: 14px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        background: rgba(255,255,255,.10);
+        color: #e2e8f0;
+    }
+
+    .section-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 18px 18px 10px 18px;
+        margin: 12px 0;
+        box-shadow: 0 6px 20px rgba(15,23,42,.06);
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 2px;
+    }
+
+    .section-desc {
+        font-size: 13px;
+        color: #64748b;
+        margin-bottom: 12px;
+    }
+
+    .fare-hero {
+        background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+        border: 1px solid #dbeafe;
+        border-radius: 18px;
+        padding: 18px;
+        text-align: center;
+        margin: 12px 0;
+    }
+
+    .fare-label {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .7px;
+    }
+
+    .fare-value {
+        color: #0f172a;
+        font-size: 38px;
+        font-weight: 900;
+        letter-spacing: -1px;
+        margin: 5px 0;
+    }
+
+    .fare-note {
+        color: #64748b;
+        font-size: 12px;
+    }
+
+    .emergency-box {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 18px;
+        padding: 17px 18px 8px 18px;
+        margin-top: 18px;
+    }
+
+    .emergency-title {
+        color: #9a3412;
+        font-size: 16px;
+        font-weight: 800;
+        margin-bottom: 2px;
+    }
+
+    div.stButton > button,
+    div.stLinkButton > a {
+        border-radius: 12px !important;
+        font-weight: 800 !important;
+        min-height: 46px !important;
+    }
+
+    div[data-testid="stMetric"] {
+        background: rgba(255,255,255,.72);
+        border: 1px solid #e2e8f0;
+        padding: 10px 12px;
+        border-radius: 14px;
+    }
+
+    .footer-note {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 11px;
+        margin-top: 14px;
+        line-height: 1.5;
+    }
+    </style>
     """,
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <div class="app-header">
+        <div class="app-brand">🛵 Xeom4560</div>
+        <div class="app-subtitle">Tính cước theo hành trình thực tế • Minh bạch • Nhanh • Dễ dùng</div>
+        <div class="status-pill">● Hệ thống sẵn sàng</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
@@ -186,7 +326,11 @@ def format_fare(total_m):
 
 col_title, col_refresh = st.columns([8, 1])
 with col_title:
-    st.subheader("🏁 Tính cước theo hành trình thực tế")
+    st.markdown('<div class="section-title">🏁 Điều khiển cuốc xe</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-desc">Tài xế chỉ cần Bắt đầu khi khách lên xe và Kết thúc khi hoàn tất.</div>',
+        unsafe_allow_html=True,
+    )
 with col_refresh:
     if st.button(
         "🔄 F5",
@@ -195,45 +339,48 @@ with col_refresh:
     ):
         st.rerun()
 
-st.info(
-    "💡 Tài xế chỉ cần bấm **BẮT ĐẦU CUỐC** khi khách lên xe. "
-    "App sẽ cộng quãng đường GPS thực tế. Đứng yên thì không cộng tiền. "
-    "Khách đổi nhiều điểm đến cũng không cần nhập lại."
-)
-
 if not st.session_state.trip_active:
-    st.caption("Trạng thái: " + st.session_state.trip_status)
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        if st.button(
-            "🟢 BẮT ĐẦU CUỐC",
-            use_container_width=True,
-            type="primary",
-            disabled=False,
-        ):
-            start_trip()
-            st.rerun()
-    with c2:
+    st.markdown(
+        """
+        <div class="section-card">
+            <div class="section-title">🚦 Sẵn sàng nhận cuốc</div>
+            <div class="section-desc">
+                Chưa phát sinh cước. Khi xe đứng yên, tiền không tăng.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button(
+        "🟢  BẮT ĐẦU CUỐC",
+        use_container_width=True,
+        type="primary",
+    ):
+        start_trip()
+        st.rerun()
+
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric("Quãng đường", "0,00 km")
+    with m2:
+        st.metric("Đơn giá", f"{DONG_GIA:,.0f} đ/km")
+    with m3:
         st.metric("Cước hiện tại", "0 VNĐ")
+
 else:
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button(
-            "🔴 KẾT THÚC CUỐC",
-            use_container_width=True,
-            type="primary",
-        ):
-            stop_trip()
-            st.rerun()
-    with c2:
-        st.metric("Quãng đường", f"{format_km(st.session_state.trip_total_m)} km")
-    with c3:
-        st.metric("Cước tạm tính", f"{format_fare(st.session_state.trip_total_m):,.0f} VNĐ")
+    st.markdown(
+        """
+        <div class="section-card">
+            <div class="section-title">🟢 Cuốc xe đang chạy</div>
+            <div class="section-desc">
+                GPS đang theo dõi hành trình thực tế. Không cần nhập điểm đến.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.caption(st.session_state.trip_status)
-
-    # Fragment tự chạy lại khoảng mỗi 2 giây để lấy GPS mới.
-    # Nếu môi trường Streamlit quá cũ, app vẫn báo lỗi rõ ràng thay vì tính sai tiền.
     try:
         @st.fragment(run_every=f"{GPS_POLL_SECONDS}s")
         def gps_tracker():
@@ -243,56 +390,111 @@ else:
             except Exception as exc:
                 st.warning(f"⚠️ Chưa đọc được GPS: {exc}")
 
-            st.metric(
-                "📍 Tổng quãng đường thực tế",
-                f"{format_km(st.session_state.trip_total_m)} km",
+            km_now = format_km(st.session_state.trip_total_m)
+            fare_now = format_fare(st.session_state.trip_total_m)
+
+            st.markdown(
+                f"""
+                <div class="fare-hero">
+                    <div class="fare-label">Tổng cước tạm tính</div>
+                    <div class="fare-value">{fare_now:,.0f} VNĐ</div>
+                    <div class="fare-note">{km_now:.2f} km • {DONG_GIA:,.0f} đ/km</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-            if st.session_state.trip_active:
-                st.caption(
-                    "📡 GPS đang được cập nhật tự động. "
-                    "Nếu trình duyệt hỏi quyền vị trí, hãy chọn Cho phép."
-                )
+            a, b = st.columns(2)
+            with a:
+                st.metric("📏 Quãng đường", f"{km_now:.2f} km")
+            with b:
+                st.metric("📡 GPS", st.session_state.trip_status)
+
+            st.caption(
+                "GPS đang cập nhật tự động. Hãy để trình duyệt được phép truy cập vị trí."
+            )
 
         gps_tracker()
     except Exception:
-        # Tương thích với Streamlit không hỗ trợ fragment.
         st.error(
             "⚠️ Phiên bản Streamlit hiện tại chưa hỗ trợ cập nhật GPS tự động. "
             "Cần nâng Streamlit lên phiên bản có st.fragment()."
         )
+
+    if st.button(
+        "🔴  KẾT THÚC CUỐC & CHỐT TIỀN",
+        use_container_width=True,
+        type="primary",
+    ):
+        stop_trip()
+        st.rerun()
+
+    st.markdown(
+        '<div class="footer-note">Khách có thể phát sinh nhiều điểm đến trong cùng một cuốc • App chỉ tính quãng đường GPS hợp lệ.</div>',
+        unsafe_allow_html=True,
+    )
 
 # Hiển thị hóa đơn khi kết thúc.
 if not st.session_state.trip_active and st.session_state.trip_ended_at:
     km = format_km(st.session_state.trip_total_m)
     fare = format_fare(st.session_state.trip_total_m)
 
-    st.divider()
-    with st.container(border=True):
-        st.subheader("🧾 HÓA ĐƠN CUỐC XEOM4560")
-        a, b, c = st.columns(3)
-        with a:
-            st.metric("📏 Quãng đường", f"{km} km")
-        with b:
-            st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f} đ/km")
-        with c:
-            st.metric("💵 TỔNG CƯỚC", f"{fare:,.0f} VNĐ")
+    st.markdown(
+        """
+        <div class="section-card">
+            <div class="section-title">🧾 Hóa đơn Xeom4560</div>
+            <div class="section-desc">Cuốc xe đã được chốt.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        st.success("✅ Cuốc xe đã kết thúc. Có thể thu tiền khách.")
+    a, b, c = st.columns(3)
+    with a:
+        st.metric("📏 Quãng đường", f"{km:.2f} km")
+    with b:
+        st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f} đ/km")
+    with c:
+        st.metric("💵 Tổng cước", f"{fare:,.0f} VNĐ")
 
-        if st.button("♻️ CUỐC MỚI", use_container_width=True):
-            reset_trip()
-            st.rerun()
+    st.success("✅ Cuốc xe đã kết thúc. Có thể thu tiền khách.")
 
-st.divider()
-st.divider()
+    if st.button("♻️  BẮT ĐẦU CUỐC MỚI", use_container_width=True):
+        reset_trip()
+        st.rerun()
+
 st.markdown(
-    f"🆘 **Khẩn cấp:** [📞 Gọi {HOTLINE}](tel:{HOTLINE})  •  "
-    f"[💬 Liên hệ Zalo]({ZALO_URL})"
+    """
+    <div class="emergency-box">
+        <div class="emergency-title">🆘 LIÊN HỆ KHẨN CẤP</div>
+        <div class="section-desc">Khi có sự cố hoặc cần điều phối, liên hệ Đội Xeom4560.</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-st.caption(
-    "🔒 Cơ chế lọc GPS: bỏ điểm có sai số > "
-    f"{GPS_ACCURACY_MAX_M} m, bỏ nhiễu < {MIN_MOVE_M} m và bỏ cú nhảy "
-    f"GPS tương đương > {MAX_JUMP_SPEED_KMH} km/h."
+c_hotline, c_zalo = st.columns(2)
+with c_hotline:
+    st.link_button(
+        f"📞 GỌI {HOTLINE}",
+        f"tel:{HOTLINE}",
+        use_container_width=True,
+        type="primary",
+    )
+with c_zalo:
+    st.link_button(
+        "💬 LIÊN HỆ ZALO",
+        ZALO_URL,
+        use_container_width=True,
+    )
+
+st.markdown(
+    f"""
+    <div class="footer-note">
+        🔒 Bộ lọc GPS: sai số &gt; {GPS_ACCURACY_MAX_M} m không cộng •
+        nhiễu &lt; {MIN_MOVE_M} m bỏ qua • cú nhảy &gt; {MAX_JUMP_SPEED_KMH} km/h bỏ qua.
+        <br>Xeom4560 • Cước minh bạch theo hành trình thực tế.
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
