@@ -25,6 +25,9 @@ st.markdown(
 # ============================================================
 
 DONG_GIA = 5000              # VNĐ / km
+HOTLINE = "0978666620"
+ZALO_URL = f"https://zalo.me/{HOTLINE}"
+
 GPS_ACCURACY_MAX_M = 50      # Bỏ điểm GPS có sai số lớn hơn mức này
 MIN_MOVE_M = 10              # Bỏ nhiễu GPS nhỏ hơn 10 m
 MAX_JUMP_SPEED_KMH = 120     # Loại trừ cú nhảy GPS bất thường
@@ -192,6 +195,24 @@ with col_refresh:
     ):
         st.rerun()
 
+with st.container(border=True):
+    st.markdown("### 🆘 LIÊN HỆ KHẨN CẤP")
+    st.caption("Khi có sự cố hoặc cần điều phối, tài xế có thể liên hệ Đội Xeom4560 ngay.")
+    c_hotline, c_zalo = st.columns(2)
+    with c_hotline:
+        st.link_button(
+            "📞 GỌI HOTLINE 0978 666 620",
+            f"tel:{HOTLINE}",
+            use_container_width=True,
+            type="primary",
+        )
+    with c_zalo:
+        st.link_button(
+            "💬 LIÊN HỆ ZALO",
+            ZALO_URL,
+            use_container_width=True,
+        )
+
 st.info(
     "💡 Tài xế chỉ cần bấm **BẮT ĐẦU CUỐC** khi khách lên xe. "
     "App sẽ cộng quãng đường GPS thực tế. Đứng yên thì không cộng tiền. "
@@ -282,6 +303,12 @@ if not st.session_state.trip_active and st.session_state.trip_ended_at:
             st.rerun()
 
 st.divider()
+st.divider()
+st.markdown(
+    f"🆘 **Khẩn cấp:** [📞 Gọi {HOTLINE}](tel:{HOTLINE})  •  "
+    f"[💬 Liên hệ Zalo]({ZALO_URL})"
+)
+
 st.caption(
     "🔒 Cơ chế lọc GPS: bỏ điểm có sai số > "
     f"{GPS_ACCURACY_MAX_M} m, bỏ nhiễu < {MIN_MOVE_M} m và bỏ cú nhảy "
