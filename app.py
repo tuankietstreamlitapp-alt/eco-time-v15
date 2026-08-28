@@ -85,7 +85,7 @@ st.markdown(
 )
 
 # ============================================================
-# KHỞI TẠO SESSION STATE & ĐĂNG NHẬP (TAB DANG_NHAP)
+# KHỞI TẠO SESSION STATE & TỰ ĐỘNG ĐĂNG NHẬP QUA QUERY PARAMS
 # ============================================================
 defaults = {
     "logged_in": False,
@@ -100,6 +100,24 @@ defaults = {
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+# Tính năng Ghi nhớ đăng nhập: Kiểm tra SĐT từ query params khi mở lại app
+if not st.session_state["logged_in"] and "phone" in st.query_params:
+    saved_phone = st.query_params["phone"]
+    if saved_phone:
+        _, login_records = get_worksheet_data("DANG_NHAP")
+        matched_user = None
+        if saved_phone.upper() == "KHÁCH HÀNG":
+            matched_user = {"SĐT": "KHÁCH HÀNG", "TÊN TÀI XẾ": "Khách hàng tự do"}
+        else:
+            for row in login_records:
+                if str(row.get("SĐT", "")).strip() == str(saved_phone).strip():
+                    matched_user = row
+                    break
+        if matched_user:
+            st.session_state["logged_in"] = True
+            st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
+            st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Thành viên"))
 
 # Giao diện Đăng nhập nếu chưa xác thực
 if not st.session_state["logged_in"]:
@@ -124,6 +142,8 @@ if not st.session_state["logged_in"]:
     )
     
     phone_input = st.text_input("Số điện thoại tài xế / Khách hàng:", placeholder="Ví dụ: 0978666620 hoặc KHÁCH HÀNG")
+    remember_me = st.checkbox("Ghi nhớ đăng nhập (Không cần đăng nhập lại lần sau)", value=True)
+    
     if st.button("XÁC NHẬN ĐĂNG NHẬP", use_container_width=True):
         if phone_input.strip() == "":
             st.warning("Ní ơi, vui lòng nhập số điện thoại hoặc tên tài khoản!")
@@ -144,6 +164,11 @@ if not st.session_state["logged_in"]:
                     st.session_state["logged_in"] = True
                     st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
                     st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Thành viên"))
+                    if remember_me:
+                        st.query_params["phone"] = st.session_state["user_phone"]
+                    else:
+                        if "phone" in st.query_params:
+                            del st.query_params["phone"]
                     st.success(f"Xin chào **{st.session_state['user_name']}**! Đăng nhập thành công.")
                     time.sleep(1)
                     st.rerun()
@@ -174,19 +199,24 @@ with col_text:
 
 st.write("")
 
-# Xử lý kết thúc chuyến từ JS trả về query params
+# Xử lý kết thúc chuyến ngay lập tức khi nhận tín hiệu từ JS
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
         dist_val = float(st.query_params.get("dist", 0.0))
     except (TypeError, ValueError):
         dist_val = 0.0
 
+    try:
+        start_ts = float(st.query_params.get("start", time.time()))
+    except (TypeError, ValueError):
+        start_ts = time.time()
+
     st.session_state.trip_active = False
     st.session_state.trip_ended_at = time.time()
     st.session_state.trip_total_m = dist_val
     st.session_state.trip_status = "Đã hoàn thành"
     
-    start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state.get('trip_started_at', time.time())))
+    start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_ts))
     end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state['trip_ended_at']))
     km_val = round(dist_val / 1000.0, 2)
     fare_val = round(km_val * DONG_GIA)
@@ -204,11 +234,16 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         "Hoàn thành chuyến tự động qua GPS"
     ]
     
-    # Ghi đồng thời vào cả DATA_4567 và CACHE_4567 để lưu lịch sử đầy đủ
+    # Ghi tức thì vào cả DATA_4567 và CACHE_4567
     append_row_to_sheet("DATA_4567", row_data)
     append_row_to_sheet("CACHE_4567", row_data)
     
+    # Giữ lại trạng thái đăng nhập (phone) khi clear query params
+    phone_val = st.query_params.get("phone", "")
     st.query_params.clear()
+    if phone_val:
+        st.query_params["phone"] = phone_val
+        
     st.rerun()
 
 def reset_trip():
@@ -225,17 +260,40 @@ def start_trip():
     st.session_state.trip_status = "Đang chạy"
 
 # ============================================================
-# CÁC TRẠNG THÁI CUỐC XE
+# TRẠNG THÁI CUỘC XE & ĐỒNG BỘ CACHE BỘ NHỚ MÁY
 # ============================================================
 if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     st.markdown(
         """
         <div class="section-card">
             <div class="section-title">🚦 Sẵn sàng nhận khách</div>
-            <div class="section-desc">Hệ thống GPS sẵn sàng kích hoạt và đồng bộ dữ liệu trực tiếp lên Trang tính.</div>
+            <div class="section-desc">Hệ thống GPS kích hoạt tự động, lưu Cache an toàn và đồng bộ dữ liệu vào Trang tính ngay khi kết thúc.</div>
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+    # Đoạn script kiểm tra xem có chuyến xe đang chạy dở dang trong localStorage hay không
+    components.html(
+        """
+        <script>
+        let savedMeters = localStorage.getItem("xeom_total_meters");
+        let isTripActive = localStorage.getItem("xeom_trip_active");
+        if (isTripActive === "true" && savedMeters && parseFloat(savedMeters) > 5) {
+            let startTs = localStorage.getItem("xeom_start_time") || Date.now();
+            let parentUrl = window.parent.location.href.split('?')[0];
+            let params = new URLSearchParams(window.parent.location.search);
+            params.set("action", "stop");
+            params.set("dist", savedMeters);
+            params.set("start", startTs);
+            localStorage.removeItem("xeom_total_meters");
+            localStorage.removeItem("xeom_trip_active");
+            localStorage.removeItem("xeom_start_time");
+            window.parent.location.href = parentUrl + "?" + params.toString();
+        }
+        </script>
+        """,
+        height=1,
     )
 
     if st.button("🟢 BẮT ĐẦU CUỐC XE", use_container_width=True):
@@ -247,11 +305,13 @@ elif st.session_state.trip_active:
         """
         <div class="section-card" style="border-color: #00A86B;">
             <div class="section-title" style="color: #00A86B;">🟢 Hành trình đang diễn ra</div>
-            <div class="section-desc" style="margin-bottom:0;">Đang đo lường GPS thực tế và khóa sáng màn hình chống ngắt quãng.</div>
+            <div class="section-desc" style="margin-bottom:0;">Đang Cache dữ liệu thời gian thực. Tải lại trang hay thoát app hoàn toàn không làm mất quãng đường.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    current_start_ts = st.session_state.get('trip_started_at', time.time())
 
     html_live_tracker = f"""
     <div style="font-family: sans-serif; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center;">
@@ -261,12 +321,15 @@ elif st.session_state.trip_active:
             <div style="color: #475569; font-size: 12px;"><span id="km">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
         </div>
         <button onclick="stopTrip()" style="width: 100%; background: #0f172a; color: white; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 800; cursor: pointer;">
-            💳 KẾT THÚC & LƯU LỊCH SỬ VÀO SHEET
+            💳 KẾT THÚC & GHI VÀO DATA SHEET NGAY
         </button>
-        <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 8px;">GPS: Đang kết nối...</div>
+        <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 8px;">GPS: Đang theo dõi & Cache Active...</div>
     </div>
 
     <script>
+    localStorage.setItem("xeom_trip_active", "true");
+    localStorage.setItem("xeom_start_time", "{current_start_ts}");
+
     function calcCrow(lat1, lon1, lat2, lon2) {{
         var R = 6371000;
         var dLat = (lat2 - lat1) * Math.PI / 180;
@@ -291,7 +354,7 @@ elif st.session_state.trip_active:
         navigator.geolocation.watchPosition(
             function(pos) {{
                 let lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy;
-                document.getElementById("debug_acc").innerText = "Sai số GPS: ±" + acc.toFixed(1) + " m";
+                document.getElementById("debug_acc").innerText = "Sai số GPS: ±" + acc.toFixed(1) + " m | Cache OK";
                 if (acc > {GPS_ACCURACY_MAX_M}) return;
                 if (lastLat === null) {{ lastLat = lat; lastLon = lon; return; }}
                 let d = calcCrow(lastLat, lastLon, lat, lon);
@@ -310,12 +373,17 @@ elif st.session_state.trip_active:
     }}
 
     function stopTrip() {{
+        let finalDist = localStorage.getItem("xeom_total_meters") || "0";
         localStorage.removeItem("xeom_total_meters");
-        let parentUrl = document.referrer ? document.referrer.split('?')[0] : window.location.href.split('?')[0];
-        let targetUrl = parentUrl + "?action=stop&dist=" + totalMeters;
-        let a = document.createElement("a");
-        a.href = targetUrl; a.target = "_top";
-        document.body.appendChild(a); a.click();
+        localStorage.removeItem("xeom_trip_active");
+        localStorage.removeItem("xeom_start_time");
+        
+        let parentUrl = window.parent.location.href.split('?')[0];
+        let params = new URLSearchParams(window.parent.location.search);
+        params.set("action", "stop");
+        params.set("dist", finalDist);
+        params.set("start", "{current_start_ts}");
+        window.parent.location.href = parentUrl + "?" + params.toString();
     }}
     </script>
     """
@@ -336,8 +404,8 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     st.markdown(
         """
         <div class="section-card" style="border-color: #00A86B;">
-            <div class="section-title" style="color: #00A86B;">🎉 HOÀN THÀNH VÀ ĐÃ LƯU LỊCH SỬ</div>
-            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công vào bảng `DATA_4567` và `CACHE_4567`!</div>
+            <div class="section-title" style="color: #00A86B;">🎉 HOÀN THÀNH & ĐÃ GHI VÀO DATA SHEET</div>
+            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công tức thì vào bảng `DATA_4567`!</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -348,7 +416,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     with c2: st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f}đ")
     with c3: st.metric("💵 Tổng tiền", f"{fare:,.0f} VNĐ")
 
-    st.success("✅ Đã đồng bộ lịch sử chuyến đi lên Google Sheets thành công!")
+    st.success("✅ Lưu thành công lịch sử vào Google Sheets!")
     
     st.write("")
     if st.button("♻️ BẮT ĐẦU CUỐC MỚI", use_container_width=True):
@@ -388,4 +456,5 @@ if st.button("🔒 ĐĂNG XUẤT TÀI KHOẢN", type="secondary", use_container_
     st.session_state["logged_in"] = False
     st.session_state["user_phone"] = ""
     st.session_state["user_name"] = ""
+    st.query_params.clear()
     st.rerun()
