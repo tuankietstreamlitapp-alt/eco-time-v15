@@ -18,35 +18,59 @@ st.markdown(
 )
 
 
-# 1. Hàm tìm danh sách địa điểm gợi ý
+# 1. Hàm tìm danh sách địa điểm gợi ý (Đã tối ưu lọc từ khóa thông minh)
 def lay_danh_sach_goi_y(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return []
-    dia_chi_sach = dia_chi.replace("-", " ").strip()
+
+    # Làm sạch chuỗi: loại bỏ bớt ký tự phân cách rườm rà như dấu |, -, các chữ dài
+    dia_chi_sach = dia_chi.replace("|", " ").replace("-", " ").strip()
+
     danh_sach = []
-    try:
-        url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(dia_chi_sach + ' Đồng Nai Việt Nam')}&limit=5"
-        res = requests.get(
-            url, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
-        ).json()
-        if res.get("features"):
-            for item in res["features"]:
-                props = item.get("properties", {})
-                name = props.get("name", "")
-                street = props.get("street", "")
-                district = props.get("district", props.get("county", ""))
-                city = props.get("city", "")
-                chi_tiet = ", ".join(
-                    filter(None, [name, street, district, city])
-                )
-                if not chi_tiet:
-                    chi_tiet = dia_chi_sach
-                coords = item["geometry"]["coordinates"]
-                danh_sach.append(
-                    {"label": chi_tiet, "lat": coords[1], "lon": coords[0]}
-                )
-    except Exception:
-        pass
+    # Thử tìm kiếm với toàn bộ từ khóa gốc trước
+    queries = [dia_chi_sach + " Đồng Nai Việt Nam"]
+
+    # Nếu chuỗi quá dài (dạng copy địa chỉ Google Maps), tự động cắt ngắn lấy phần trọng tâm (Số nhà + Tên đường)
+    parts = dia_chi_sach.split(",")
+    if len(parts) > 1:
+        # Lấy phần đầu chứa số nhà, tên đường và khu vực chính
+        chi_chinh = f"{parts[0].strip()} {parts[1].strip()}"
+        queries.append(chi_chinh + " Đồng Nai Việt Nam")
+
+    for q in queries:
+        try:
+            url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q)}&limit=5"
+            res = requests.get(
+                url, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
+            ).json()
+            if res.get("features"):
+                for item in res["features"]:
+                    props = item.get("properties", {})
+                    name = props.get("name", "")
+                    street = props.get("street", "")
+                    district = props.get(
+                        "district", props.get("county", "")
+                    )
+                    city = props.get("city", "")
+                    chi_tiet = ", ".join(
+                        filter(None, [name, street, district, city])
+                    )
+                    if not chi_tiet:
+                        chi_tiet = dia_chi_sach
+                    coords = item["geometry"]["coordinates"]
+
+                    # Tránh thêm trùng lặp địa điểm
+                    ket_qua_moi = {
+                        "label": chi_tiet,
+                        "lat": coords[1],
+                        "lon": coords[0],
+                    }
+                    if ket_qua_moi not in danh_sach:
+                        danh_sach.append(ket_qua_moi)
+                if danh_sach:
+                    break  # Tìm thấy rồi thì dừng lại
+        except Exception:
+            pass
     return danh_sach
 
 
