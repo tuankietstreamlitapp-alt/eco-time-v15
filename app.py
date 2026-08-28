@@ -14,7 +14,6 @@ st.set_page_config(
 # ============================================================
 # CẤU HÌNH KẾT NỐI GOOGLE SHEETS
 # ============================================================
-# Lấy trực tiếp thông tin từ cấu hình [connections.gsheets] trong secrets của ní
 SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
 
 @st.cache_resource
@@ -23,7 +22,6 @@ def init_google_sheet_client():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    # Trỏ đúng vào dictionary connections.gsheets
     creds_dict = dict(st.secrets["connections"]["gsheets"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
@@ -32,7 +30,6 @@ def init_google_sheet_client():
 def get_worksheet_data(tab_name):
     try:
         client = init_google_sheet_client()
-        # Mở trang tính trực tiếp bằng ID (SHEET_KEY) hoặc tên
         try:
             sheet = client.open_by_key(SHEET_KEY)
         except Exception:
@@ -132,9 +129,8 @@ if not st.session_state["logged_in"]:
             st.warning("Ní ơi, vui lòng nhập số điện thoại hoặc tên tài khoản!")
         else:
             with st.spinner("Đang kiểm tra dữ liệu từ Trang tính..."):
-                _, login_records = get_worksheet_data("DANG_NHAP") #[span_4](start_span)[span_4](end_span)
+                _, login_records = get_worksheet_data("DANG_NHAP")
                 
-                # Kiểm tra khớp dữ liệu trong tab DANG_NHAP[span_5](start_span)[span_5](end_span)
                 matched_user = None
                 if phone_input.upper() == "KHÁCH HÀNG":
                     matched_user = {"SĐT": "KHÁCH HÀNG", "TÊN TÀI XẾ": "Khách hàng tự do"}
@@ -152,7 +148,7 @@ if not st.session_state["logged_in"]:
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("❌ Số điện thoại không tồn tại trong danh sách phân quyền (`DANG_NHAP`)[span_6](start_span)[span_6](end_span)!")
+                    st.error("❌ Số điện thoại không tồn tại trong danh sách phân quyền (`DANG_NHAP`)!")
     st.stop()
 
 # ============================================================
@@ -163,7 +159,6 @@ HOTLINE = "0978666620"
 GPS_ACCURACY_MAX_M = 60
 MIN_MOVE_M = 4
 
-# Header chính
 col_logo, col_text = st.columns([1, 4], vertical_alignment="center")
 with col_logo:
     st.write("🛵 **4567**")
@@ -192,14 +187,13 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     st.session_state.trip_total_m = dist_val
     st.session_state.trip_status = "Đã hoàn thành"
     
-    # Tự động lưu Cache vào Google Sheets (Tab CACHE_4567)[span_7](start_span)[span_7](end_span)
     start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state.get('trip_started_at', time.time())))
     end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state['trip_ended_at']))
     km_val = round(dist_val / 1000.0, 2)
     fare_val = round(km_val * DONG_GIA)
     
     cache_row = [
-        "", # STT (để trống hoặc tự tăng)
+        "", 
         start_time_str,
         end_time_str,
         st.session_state['user_name'],
@@ -210,7 +204,7 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         fare_val,
         "Hoàn thành chuyến tự động qua GPS"
     ]
-    append_row_to_sheet("CACHE_4567", cache_row) #[span_8](start_span)[span_8](end_span)
+    append_row_to_sheet("CACHE_4567", cache_row)
     
     st.query_params.clear()
     st.rerun()
@@ -231,7 +225,6 @@ def start_trip():
 # ============================================================
 # CÁC TRẠNG THÁI CUỐC XE
 # ============================================================
-# Trạng thái 1: Chưa bắt đầu
 if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     st.markdown(
         """
@@ -247,7 +240,6 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         start_trip()
         st.rerun()
 
-# Trạng thái 2: Đang chạy Real-time
 elif st.session_state.trip_active:
     st.markdown(
         """
@@ -327,12 +319,10 @@ elif st.session_state.trip_active:
     """
     components.html(html_live_tracker, height=200)
 
-# Trạng thái 3: Hoàn thành chuyến & Báo cáo Real-time
 elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     km = st.session_state.trip_total_m / 1000.0
     fare = km * DONG_GIA
 
-    # Pháo hoa ăn mừng
     components.html(
         """
         <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -345,7 +335,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
         """
         <div class="section-card" style="border-color: #00A86B;">
             <div class="section-title" style="color: #00A86B;">🎉 HOÀN THÀNH VÀ ĐÃ LƯU CACHE</div>
-            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công vào Google Sheets (`CACHE_4567`)[span_9](start_span)[span_9](end_span)!</div>
+            <div class="section-desc">Dữ liệu chuyến xe đã được ghi thành công vào Google Sheets (`CACHE_4567`)!</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -363,7 +353,6 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
         reset_trip()
         st.rerun()
 
-# ============================================================
 # ============================================================
 # KHU VỰC XEM BÁO CÁO THỜI GIAN THỰC TỪ GOOGLE SHEETS
 # ============================================================
@@ -386,14 +375,12 @@ with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", e
         if cache_records:
             df_cache = pd.DataFrame(cache_records)
             st.dataframe(df_cache, use_container_width=True)
-            # Thống kê nhanh tổng doanh thu từ Cache
             if "THÀNH TIỀN" in df_cache.columns:
                 total_rev = pd.to_numeric(df_cache["THÀNH TIỀN"], errors='coerce').sum()
                 st.metric("Tổng doanh thu lưu trong Cache", f"{total_rev:,.0f} VNĐ")
         else:
             st.warning("Chưa có dữ liệu ghi nhận trong `CACHE_4567`.")
 
-# Đăng xuất
 st.write("")
 if st.button("🔒 ĐĂNG XUẤT TÀI KHOẢN", type="secondary", use_container_width=True):
     st.session_state["logged_in"] = False
