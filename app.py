@@ -18,33 +18,67 @@ st.markdown(
 )
 
 
-# 1. Hàm tìm danh sách địa điểm gợi ý (Đã tối ưu lọc từ khóa thông minh)
+# 1. Hàm tìm kiếm thông minh: Tự động tách lọc địa chỉ Google Maps
 def lay_danh_sach_goi_y(dia_chi):
     if not dia_chi or len(dia_chi.strip()) < 2:
         return []
 
-    # Làm sạch chuỗi: loại bỏ bớt ký tự phân cách rườm rà như dấu |, -, các chữ dài
-    dia_chi_sach = dia_chi.replace("|", " ").replace("-", " ").strip()
+    # Làm sạch chuỗi, tách các phần ngăn cách bằng dấu phẩy hoặc dấu gạch đứng
+    parts = [p.strip() for p in dia_chi.replace("|", ",").split(",")]
+
+    query_parts = []
+    for p in parts:
+        p_lower = p.lower()
+        # Tự động loại bỏ tên quán/chi nhánh riêng lẻ để tập trung vào số nhà và tên đường
+        if any(
+            tu_khoa in p_lower
+            for tu_khoa in [
+                "bida",
+                "quán",
+                "công ty",
+                "cn",
+                "việt nam",
+                "chi nhánh",
+            ]
+        ):
+            # Nếu đoạn đó có chứa số (ví dụ số nhà) thì vẫn giữ lại
+            if not any(so in p for so in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]):
+                continue
+        query_parts.append(p)
+
+    clean_query = ", ".join(query_parts) if query_parts else dia_chi
+    if "đồng nai" not in clean_query.lower():
+        clean_query += ", Đồng Nai"
 
     danh_sach = []
-    # Thử tìm kiếm với toàn bộ từ khóa gốc trước
-    queries = [dia_chi_sach + " Đồng Nai Việt Nam"]
+    try:
+        # Sử dụng Nominatim API của OpenStreetMap (xử lý địa chỉ chi tiết cực tốt)
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(clean_query)}&format=json&limit=5"
+        res = requests.get(
+            url, headers={"User-Agent": "DoiXeOmApp_Pro/1.0"}, timeout=5
+        ).json()
 
-    # Nếu chuỗi quá dài (dạng copy địa chỉ Google Maps), tự động cắt ngắn lấy phần trọng tâm (Số nhà + Tên đường)
-    parts = dia_chi_sach.split(",")
-    if len(parts) > 1:
-        # Lấy phần đầu chứa số nhà, tên đường và khu vực chính
-        chi_chinh = f"{parts[0].strip()} {parts[1].strip()}"
-        queries.append(chi_chinh + " Đồng Nai Việt Nam")
+        if res:
+            for item in res:
+                display_name = item.get("display_name", "")
+                lat = float(item.get("lat"))
+                lon = float(item.get("lon"))
+                # Tránh trùng lặp
+                ket_qua = {"label": display_name, "lat": lat, "lon": lon}
+                if ket_qua not in danh_sach:
+                    danh_sach.append(ket_qua)
+    except Exception:
+        pass
 
-    for q in queries:
+    # Fallback sang Photon nếu Nominatim cần hỗ trợ thêm
+    if not danh_sach:
         try:
-            url = f"https://photon.komoot.io/api/?q={urllib.parse.quote(q)}&limit=5"
-            res = requests.get(
-                url, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
+            url_photon = f"https://photon.komoot.io/api/?q={urllib.parse.quote(clean_query)}&limit=5"
+            res_p = requests.get(
+                url_photon, headers={"User-Agent": "DoiXeOmApp/1.0"}, timeout=4
             ).json()
-            if res.get("features"):
-                for item in res["features"]:
+            if res_p.get("features"):
+                for item in res_p["features"]:
                     props = item.get("properties", {})
                     name = props.get("name", "")
                     street = props.get("street", "")
@@ -56,21 +90,18 @@ def lay_danh_sach_goi_y(dia_chi):
                         filter(None, [name, street, district, city])
                     )
                     if not chi_tiet:
-                        chi_tiet = dia_chi_sach
+                        chi_tiet = clean_query
                     coords = item["geometry"]["coordinates"]
-
-                    # Tránh thêm trùng lặp địa điểm
-                    ket_qua_moi = {
+                    ket_qua = {
                         "label": chi_tiet,
                         "lat": coords[1],
                         "lon": coords[0],
                     }
-                    if ket_qua_moi not in danh_sach:
-                        danh_sach.append(ket_qua_moi)
-                if danh_sach:
-                    break  # Tìm thấy rồi thì dừng lại
+                    if ket_qua not in danh_sach:
+                        danh_sach.append(ket_qua)
         except Exception:
             pass
+
     return danh_sach
 
 
@@ -129,11 +160,9 @@ thoi_gian_phut = 0
 lat1, lon1 = None, None
 diem_don_text = "Vị trí GPS hiện tại của bạn"
 
-# Dùng container có khung viền (border=True) để tạo cảm giác như tờ bill
 with st.container(border=True):
     st.subheader("🧾 Chi Tiết Cước Phí Chuyến Đi")
 
-    # Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
     cho_phep_gps = st.radio(
         "📍 Cho phép sử dụng vị trí của bạn?",
         options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
@@ -164,13 +193,11 @@ with st.container(border=True):
             so_km = 3.0
             thoi_gian_phut = round((so_km / 30) * 60)
 
-    # Đơn giá cố định 5k/km
     DONG_GIA = 5000
     gia = so_km * DONG_GIA
 
     st.markdown("---")
 
-    # Hiển thị trực quan các ô thông tin ngang hàng trong khung bill
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         st.metric(label="📏 Quãng đường", value=f"{so_km} Km")
@@ -184,7 +211,7 @@ st.divider()
 # ==========================================
 # BƯỚC 3: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
 # ==========================================
-HOTLINE = "0978666620"  # Ní thay SĐT của chú bác tài xế vào đây
+HOTLINE = "0978666620"
 
 if diem_den_chon and lat1 and lon1 and so_km > 0:
     maps_url = f"https://www.google.com/maps/dir/?api=1&origin={lat1},{lon1}&destination={urllib.parse.quote(diem_den_chon)}&travelmode=driving"
