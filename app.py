@@ -104,7 +104,7 @@ diem_don_text = "Vị trí GPS hiện tại của bạn"
 
 # Lựa chọn cấp quyền sử dụng vị trí (Có / Không)
 cho_phep_gps = st.radio(
-    "📍 Cho phép sử dụng vị trí của bạn?",
+    "📍  Cho phép sử dụng vị trí của bạn?",
     options=["Có (Tự động lấy vị trí đón)", "Không (Tắt định vị)"],
     index=0,
     horizontal=True,
