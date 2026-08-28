@@ -122,7 +122,7 @@ with st.container(border=True):
         if loc and "coords" in loc:
             lat1 = loc["coords"]["latitude"]
             lon1 = loc["coords"]["longitude"]
-            st.success("✅ Đã bật định vị vị trí thành công!")
+            st.success("✅ Đã bật vị trí!")
         else:
             st.info(
                 "💡 Trình duyệt đang chờ bạn cấp quyền vị trí. Bấm 'Cho phép' trên"
