@@ -93,53 +93,21 @@ if tim_kiem_den:
 st.divider()
 
 # ==========================================
-# BƯỚC 2: 📍 VỊ TRÍ ĐÓN (ĐÃ ĐƯA XUỐNG SAU KHI CHỌN ĐIỂM ĐẾN)
+# BƯỚC 2: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
 # ==========================================
-st.subheader("📍 2. Vị trí đón của bạn")
-dung_gps = st.checkbox(
-    "📍 Tự động lấy vị trí hiện tại của tôi (Khuyên dùng)", value=True
-)
-
-lat1, lon1 = None, None
-diem_don_text = ""
-
-if dung_gps:
-    loc = get_geolocation()
-    if loc and "coords" in loc:
-        lat1 = loc["coords"]["latitude"]
-        lon1 = loc["coords"]["longitude"]
-        diem_don_text = "Vị trí GPS hiện tại của bạn"
-        st.success(f"✅ Đã định vị xong vị trí của bạn!")
-    else:
-        st.info("💡 Trình duyệt đang xin quyền GPS. Bấm 'Cho phép' nếu được hỏi.")
-        diem_don_input = st.text_input(
-            "Hoặc nhập điểm đón thủ công:",
-            placeholder="Ví dụ: KCN Biên Hòa 2...",
-        )
-        if diem_don_input:
-            ds_don = lay_danh_sach_goi_y(diem_don_input)
-            if ds_don:
-                lat1, lon1 = ds_don[0]["lat"], ds_don[0]["lon"]
-                diem_don_text = ds_don[0]["label"]
-else:
-    diem_don_input = st.text_input(
-        "Nhập điểm đón thủ công:", placeholder="Ví dụ: KCN Biên Hòa 2..."
-    )
-    if diem_don_input:
-        ds_don = lay_danh_sach_goi_y(diem_don_input)
-        if ds_don:
-            lat1, lon1 = ds_don[0]["lat"], ds_don[0]["lon"]
-            diem_don_text = ds_don[0]["label"]
-
-st.divider()
-
-# ==========================================
-# BƯỚC 3: 💰 HIỂN THỊ KẾT QUẢ KHOẢNG CÁCH & CƯỚC PHÍ
-# ==========================================
-st.subheader("📊 3. Thông tin chuyến đi & Cước phí")
+st.subheader("📊 2. Thông tin chuyến đi & Cước phí")
 
 so_km = 0.0
 thoi_gian_phut = 0
+
+# Tự động ngầm lấy vị trí GPS hiện tại của khách
+lat1, lon1 = None, None
+diem_don_text = "Vị trí GPS hiện tại của bạn"
+
+loc = get_geolocation()
+if loc and "coords" in loc:
+    lat1 = loc["coords"]["latitude"]
+    lon1 = loc["coords"]["longitude"]
 
 if lat1 and lon1 and lat2 and lon2:
     km_goc = tinh_so_km_thuc_te(lat1, lon1, lat2, lon2)
@@ -147,7 +115,7 @@ if lat1 and lon1 and lat2 and lon2:
         so_km = round(km_goc * 1.025, 2)  # Bù sai số 2.5%
         thoi_gian_phut = round((so_km / 35) * 60)
     else:
-        so_km = 3.0  # Mặc định tạm tính nếu mất kết nối
+        so_km = 3.0
         thoi_gian_phut = round((so_km / 35) * 60)
 
 # Đơn giá cố định 5k/km
@@ -163,10 +131,19 @@ with col_b:
 with col_c:
     st.metric(label="💰 Tổng cước phí", value=f"{gia:,.0f} đ")
 
+# Dòng trạng thái GPS thu gọn tinh tế phía dưới thành tiền
+if lat1 and lon1:
+    st.success("✅ Đã định vị xong vị trí của bạn!")
+else:
+    st.info(
+        "💡 Trình duyệt đang lấy GPS. Hãy bấm 'Cho phép' nếu được hỏi quyền vị"
+        " trí."
+    )
+
 st.divider()
 
 # ==========================================
-# BƯỚC 4: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
+# BƯỚC 3: 📞 KẾT NỐI ĐẶT XE (HOTLINE & ZALO)
 # ==========================================
 HOTLINE = "0901234567"  # Ní thay SĐT của chú bác tài xế vào đây
 
@@ -195,6 +172,4 @@ if diem_den_chon and lat1 and lon1 and so_km > 0:
             "💬 GỬI ĐƠN QUA ZALO", zalo_url, use_container_width=True
         )
 else:
-    st.info(
-        "💡 Vui lòng nhập điểm đến và đảm bảo đã xác định vị trí đón để hiển thị nút đặt xe."
-    )
+    st.info("💡 Vui lòng nhập điểm đến để hiển thị nút đặt xe.")
