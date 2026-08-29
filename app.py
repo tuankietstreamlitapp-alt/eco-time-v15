@@ -188,8 +188,12 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
   fare_val = round(km_val * UNIT_PRICE)
   trip_id = f"CX_{int(start_ts)}"
 
+  # Tự động tính STT dựa trên số dòng hiện tại của tab DATA
+  _, data_records = get_worksheet_data("DATA")
+  next_data_stt = len(data_records) + 1
+
   row_data = [
-      "1",
+      str(next_data_stt),
       trip_id,
       start_time_str,
       end_time_str,
@@ -327,8 +331,12 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     vn_now = datetime.utcnow() + timedelta(hours=7)
     start_time_str = vn_now.strftime('%Y-%m-%d %H:%M:%S')
     
+    # Tự động tính STT dựa trên số dòng hiện tại của tab CACHE
+    _, cache_records = get_worksheet_data("CACHE")
+    next_cache_stt = len(cache_records) + 1
+
     cache_row = [
-        "1",
+        str(next_cache_stt),
         st.session_state.trip_id,
         start_time_str,
         "",
@@ -345,7 +353,7 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     append_row_to_sheet("CACHE", cache_row)
     st.rerun()
 
-# TRẠNG THÁI: ĐANG TRONG HÀNH TRÌNH (CHUẨN GIAO DIỆN NHƯ ẢNH MẪU)
+# TRẠNG THÁI: ĐANG TRONG HÀNH TRÌNH
 elif st.session_state.trip_active:
   current_start_ts = st.session_state.get('trip_started_at', time.time())
   cust_display = st.session_state.get('customer_info', 'Khách vãng lai (Không có)')
@@ -353,22 +361,18 @@ elif st.session_state.trip_active:
 
   html_live_tracker = f"""
   <div style="font-family: system-ui, -apple-system, sans-serif; padding: 20px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);">
-      <!-- TIÊU ĐỀ TRẠNG THÁI -->
       <div style="text-align: center; font-size: 17px; font-weight: 900; color: #059669; margin-bottom: 12px; text-transform: uppercase;">
           ⏱️ ĐANG TRONG CUỐC XE...
       </div>
 
-      <!-- KHUNG THÔNG TIN KHÁCH HÀNG -->
       <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 10px; margin-bottom: 8px; text-align: center; color: #166534; font-size: 13px; font-weight: 700;">
           Khách: {cust_display}
       </div>
 
-      <!-- KHUNG TRẠNG THÁI GPS -->
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 14px; text-align: center; color: #047857; font-size: 12px; font-weight: 700;">
           🛰️ <span id="debug_acc">Đang kết nối tín hiệu vệ tinh...</span>
       </div>
 
-      <!-- CÁC DÒNG THÔNG SỐ CHI TIẾT GIỐNG ẢNH MẪU -->
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 15px; font-weight: 800; color: #1e293b;">
           <span>SỐ KM:</span>
           <span id="km" style="color: #0284c7; font-size: 18px; font-weight: 900;">0.00 km</span>
@@ -389,7 +393,6 @@ elif st.session_state.trip_active:
           <span id="price" style="font-size: 24px; font-weight: 900;">0 đ</span>
       </div>
       
-      <!-- NÚT KẾT THÚC CHUYẾN ĐI -->
       <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 17px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
           🛑 KẾT THÚC CHUYẾN ĐI
       </button>
@@ -399,7 +402,6 @@ elif st.session_state.trip_active:
   localStorage.setItem("xeom_trip_active", "true");
   localStorage.setItem("xeom_start_time", "{current_start_ts}");
 
-  // Bộ đếm thời gian thực chạy từng giây
   let startTime = parseFloat("{current_start_ts}");
   setInterval(function() {{
       let now = Date.now() / 1000;
