@@ -91,11 +91,6 @@ if "mock_state" not in st.session_state:
 st.markdown("<h1 style='text-align:center; color:#059669; margin-bottom:0px; font-size:28px;'>🛵 4567 XE ÔM</h1>", unsafe_allow_html=True)
 st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
 
-# KHUNG THẺ CHÍNH (ĐÃ MỞ LẠI)
-st.markdown("<div class='app-card'>", style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
-unsafe_allow_html=True)
-st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
-
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
