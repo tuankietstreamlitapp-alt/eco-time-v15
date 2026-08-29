@@ -1,11 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import streamlit as st
 import streamlit.components.v1 as components
-
-# --- CẤU HÌNH GIỜ VIỆT NAM ---
-VN_TZ = timezone(timedelta(hours=7))
 
 st.set_page_config(
     page_title="4567 Xe Ôm - Google Sheets Cache",
@@ -137,7 +134,7 @@ if "start_time_str" not in st.session_state:
 UNIT_PRICE = 5000  # 5,000 đ/km
 DRIVER_NAME = "Nguyễn Văn A"
 
-# Kiểm tra CACHE tồn đọng để phục hồi
+# Kiểm tra xem có dữ liệu tồn đọng trong CACHE không (phòng hờ tài xế lỡ tay refresh app)
 if (
     st.session_state.mock_state == "home"
     and is_connected is True
@@ -152,7 +149,7 @@ if (
         st.session_state.start_time_str = last_row[2]
         st.session_state.customer_name = last_row[5]
         st.session_state.customer_phone = last_row[6]
-        st.session_state.mock_state = "running"
+        st.session_state.mock_state = "running" 
   except Exception:
     pass
 
@@ -167,7 +164,7 @@ if is_connected is True:
   st.markdown(
       "<div style='text-align:center; font-size:14px; color:#64748b;"
       " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
-      " style='color:#10b981;'>● Đã kết nối Google Sheets</span></div>",
+      " style='color:#10b981;'>● Đã kết nối Google Sheets (Cache)</span></div>",
       unsafe_allow_html=True,
   )
 else:
@@ -185,19 +182,32 @@ if st.session_state.mock_state == "home":
       unsafe_allow_html=True,
   )
 
-  c_name = st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)", key="input_name")
-  c_phone = st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Ví dụ: 0909xxxxxx", key="input_phone")
+  c_name = st.text_input(
+      "TÊN KHÁCH HÀNG:",
+      placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)",
+      key="input_name",
+  )
+  c_phone = st.text_input(
+      "SỐ ĐIỆN THOẠI:",
+      placeholder="Ví dụ: 0909xxxxxx",
+      key="input_phone",
+  )
 
   st.write("")
   if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
-    st.session_state.customer_name = c_name.strip() if c_name.strip() else "Khách vãng lai"
-    st.session_state.customer_phone = c_phone.strip() if c_phone.strip() else "Không có"
+    st.session_state.customer_name = (
+        c_name.strip() if c_name.strip() else "Khách vãng lai"
+    )
+    st.session_state.customer_phone = (
+        c_phone.strip() if c_phone.strip() else "Không có"
+    )
 
-    # Lấy giờ VN
-    now = datetime.now(VN_TZ)
-    st.session_state.ma_cuoc_xe = f"CX_{now.strftime('%Y%m%d_%H%M%S')}"
-    st.session_state.start_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    # Sinh mã cuộc xe dựa trên thời gian thực (Giờ Việt Nam)
+    vn_now = datetime.utcnow() + timedelta(hours=7)
+    st.session_state.ma_cuoc_xe = f"CX_{vn_now.strftime('%Y%m%d_%H%M%S')}"
+    st.session_state.start_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
 
+    # Đẩy ngay dữ liệu khởi tạo vào sheet CACHE
     if is_connected is True and sheet_cache:
       try:
         new_row = [
@@ -224,7 +234,7 @@ if st.session_state.mock_state == "home":
   st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN
+# 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN (TÍCH HỢP GPS)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
   query_params = st.query_params
@@ -240,12 +250,14 @@ elif st.session_state.mock_state == "running":
         cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
         if cell:
           row_idx = cell.row
-          end_time_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
-          sheet_cache.update_cell(row_idx, 4, end_time_str)
-          sheet_cache.update_cell(row_idx, 5, final_time)
-          sheet_cache.update_cell(row_idx, 11, final_km)
-          sheet_cache.update_cell(row_idx, 12, final_money)
-          sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán")
+          # Lấy giờ Việt Nam
+          vn_now = datetime.utcnow() + timedelta(hours=7)
+          end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
+          sheet_cache.update_cell(row_idx, 4, end_time_str)  
+          sheet_cache.update_cell(row_idx, 5, final_time)  
+          sheet_cache.update_cell(row_idx, 11, final_km)  
+          sheet_cache.update_cell(row_idx, 12, final_money)  
+          sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán") 
       except Exception:
         pass
 
@@ -254,19 +266,19 @@ elif st.session_state.mock_state == "running":
       try:
         cache_rows = sheet_cache.get_all_values()
         if len(cache_rows) > 1:
-          row_to_move = cache_rows[1]
+          row_to_move = cache_rows[1] 
           row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
-          sheet_data.append_row(row_to_move)
-          sheet_cache.clear()
+          sheet_data.append_row(row_to_move) 
+          sheet_cache.clear() 
           sheet_cache.append_row([
               "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
-              "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", 
-              "SỐ TIỀN THU", "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI"
+              "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
+              "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
           ])
       except Exception:
         pass
 
-    # Chuyển sang màn hình xác nhận đã thanh toán xong
+    # Chuyển sang màn hình hoàn tất
     st.session_state.mock_state = "paid"
     st.query_params.clear()
     st.rerun()
@@ -316,7 +328,7 @@ elif st.session_state.mock_state == "running":
             <button class="btn-action btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
         </div>
 
-        <!-- GIAO DIỆN XÁC NHẬN CHỜ THANH TOÁN -->
+        <!-- GIAO DIỆN THANH TOÁN -->
         <div id="payment-view" style="display: none;">
             <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">💳 XÁC NHẬN THANH TOÁN</div>
             <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
@@ -339,7 +351,7 @@ elif st.session_state.mock_state == "running":
                 <span id="final-money-val" style="font-weight:900;">0 đ</span>
             </div>
 
-            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ ĐÃ THANH TOÁN</button>
+            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ XÁC NHẬN THANH TOÁN</button>
         </div>
     </div>
 
@@ -443,34 +455,21 @@ elif st.session_state.mock_state == "running":
 # 3. MÀN HÌNH HOÀN TẤT & BẮT ĐẦU CUỐC MỚI
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "paid":
-  st.markdown("<div class='app-card'>", unsafe_allow_html=True)
-  
-  st.markdown(
-      "<div style='text-align:center; padding: 20px 0;'>"
-      "<div style='font-size: 50px; margin-bottom: 10px;'>🎉</div>"
-      "<h2 style='color:#059669; margin:0;'>HOÀN TẤT CUỐC XE</h2>"
-      "<p style='color:#64748b; font-size:14px; margin-top:5px;'>"
-      "Dữ liệu đã được lưu an toàn vào Google Sheets (DATA)</p>"
-      "</div>", 
-      unsafe_allow_html=True
-  )
-
-  st.markdown(f"**Khách hàng:** {st.session_state.customer_name}")
-  st.markdown(f"**Mã cuốc:** `{st.session_state.ma_cuoc_xe}`")
+  st.markdown("<div class='app-card' style='text-align:center;'>", unsafe_allow_html=True)
+  st.markdown("<h3 style='color:#059669;'>✅ THANH TOÁN THÀNH CÔNG!</h3>", unsafe_allow_html=True)
+  st.write("Dữ liệu cuốc xe đã được lưu vào danh sách (DATA) và dọn dẹp bộ nhớ đệm (CACHE).")
   st.write("")
-
+  
   if st.button("🚀 BẮT ĐẦU CUỐC MỚI", type="primary", use_container_width=True):
-    # Reset toàn bộ biến để đón khách mới
     st.session_state.mock_state = "home"
     st.session_state.customer_name = ""
     st.session_state.customer_phone = ""
     st.session_state.ma_cuoc_xe = ""
     st.rerun()
-    
   st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# NÚT ZALO & CÂU CHÚC TẬN CÙNG DƯỚI ĐÁY
+# NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
 # ============================================================
 st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
 st.markdown(
