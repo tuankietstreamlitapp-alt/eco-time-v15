@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="4567 Xe Ôm - Google Sheets Cache",
+    page_title="4567 Xe Ôm - Google Sheets Cache & Data",
     page_icon="🛵",
     layout="centered",
 )
@@ -15,41 +15,37 @@ st.set_page_config(
 # ============================================================
 @st.cache_resource
 def init_google_sheets():
-  try:
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # Ép cứng trường type để tránh bị nhận diện nhầm thành None
-    creds_dict["type"] = "service_account"
-
-    # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
-    raw_key = creds_dict.get("private_key", "")
-    if "-----BEGIN PRIVATE KEY-----" in raw_key:
-        # Lấy phần lõi của key, xóa sạch mọi khoảng trắng, \n, \r bị dư
-        key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
-        key_body = key_body.replace(" ", "").replace("\\n", "").replace("\n", "").replace("\r", "")
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds_dict = dict(st.secrets["gcp_service_account"])
         
-        # Chia lại thành từng dòng 64 ký tự chuẩn xác 100%
-        chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
-        clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
-        creds_dict["private_key"] = clean_key
-    # --------------------------------------------------------------
+        # Ép cứng trường type để tránh bị nhận diện nhầm thành None
+        creds_dict["type"] = "service_account"
 
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
+        # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
+        raw_key = creds_dict.get("private_key", "")
+        if "-----BEGIN PRIVATE KEY-----" in raw_key:
+            key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
+            key_body = key_body.replace(" ", "").replace("\\n", "").replace("\n", "").replace("\r", "")
+            chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
+            clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
+            creds_dict["private_key"] = clean_key
 
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY/edit?usp=drivesdk"
-    sheet_file = client.open_by_url(SHEET_URL)
-    return (
-        sheet_file.worksheet("CACHE"),
-        sheet_file.worksheet("DATA"),
-        True,
-    )
-  except Exception as e:
-    return None, None, str(e)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+
+        SHEET_URL = "https://docs.google.com/spreadsheets/d/1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY/edit?usp=drivesdk"
+        sheet_file = client.open_by_url(SHEET_URL)
+        return (
+            sheet_file.worksheet("CACHE"),
+            sheet_file.worksheet("DATA"),
+            True,
+        )
+    except Exception as e:
+        return None, None, str(e)
 
 sheet_cache, sheet_data, is_connected = init_google_sheets()
 
@@ -74,8 +70,8 @@ st.markdown(
     div.stButton > button { 
         border-radius: 14px !important; 
         font-weight: 900 !important; 
-        font-size: 22px !important; 
-        min-height: 60px !important; 
+        font-size: 20px !important; 
+        min-height: 55px !important; 
     }
     
     .app-card { 
@@ -121,37 +117,37 @@ st.markdown(
 
 # Khởi tạo trạng thái ứng dụng
 if "mock_state" not in st.session_state:
-  st.session_state.mock_state = "home"
+    st.session_state.mock_state = "home"
 if "customer_name" not in st.session_state:
-  st.session_state.customer_name = ""
+    st.session_state.customer_name = ""
 if "customer_phone" not in st.session_state:
-  st.session_state.customer_phone = ""
+    st.session_state.customer_phone = ""
 if "ma_cuoc_xe" not in st.session_state:
-  st.session_state.ma_cuoc_xe = ""
+    st.session_state.ma_cuoc_xe = ""
 if "start_time_str" not in st.session_state:
-  st.session_state.start_time_str = ""
+    st.session_state.start_time_str = ""
 
 UNIT_PRICE = 5000  # 5,000 đ/km
 DRIVER_NAME = "Nguyễn Văn A"
 
-# Kiểm tra xem có dữ liệu tồn đọng trong CACHE không (phòng hờ tài xế lỡ tay refresh app)
+# Tự động khôi phục chuyến đang chạy nếu lỡ tay tải lại trang
 if (
     st.session_state.mock_state == "home"
     and is_connected is True
     and sheet_cache
 ):
-  try:
-    cache_rows = sheet_cache.get_all_values()
-    if len(cache_rows) > 1:
-      last_row = cache_rows[1] 
-      if len(last_row) >= 13:
-        st.session_state.ma_cuoc_xe = last_row[1]
-        st.session_state.start_time_str = last_row[2]
-        st.session_state.customer_name = last_row[5]
-        st.session_state.customer_phone = last_row[6]
-        st.session_state.mock_state = "running" 
-  except Exception:
-    pass
+    try:
+        cache_rows = sheet_cache.get_all_values()
+        if len(cache_rows) > 1:
+            last_row = cache_rows[1] 
+            if len(last_row) >= 13:
+                st.session_state.ma_cuoc_xe = last_row[1]
+                st.session_state.start_time_str = last_row[2]
+                st.session_state.customer_name = last_row[5]
+                st.session_state.customer_phone = last_row[6]
+                st.session_state.mock_state = "running" 
+    except Exception:
+        pass
 
 # TIÊU ĐỀ APP
 st.markdown(
@@ -161,129 +157,137 @@ st.markdown(
 )
 
 if is_connected is True:
-  st.markdown(
-      "<div style='text-align:center; font-size:14px; color:#64748b;"
-      " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
-      " style='color:#10b981;'>● Đã kết nối Google Sheets (Cache)</span></div>",
-      unsafe_allow_html=True,
-  )
+    st.markdown(
+        "<div style='text-align:center; font-size:14px; color:#64748b;"
+        " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
+        " style='color:#10b981;'>● Đã kết nối Google Sheets</span></div>",
+        unsafe_allow_html=True,
+    )
 else:
-  st.error(f"⚠️ Lỗi kết nối Google Sheets chi tiết: {is_connected}")
+    st.error(f"⚠️ Lỗi kết nối Google Sheets chi tiết: {is_connected}")
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-  st.markdown("<div class='app-card'>", unsafe_allow_html=True)
-  st.markdown(
-      "<div style='font-size:18px; font-weight:900; color:#059669;"
-      " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
-      " #f1f5f9; text-align:center;'>🚖 TẠO CUỐC XE MỚI</div>",
-      unsafe_allow_html=True,
-  )
-
-  c_name = st.text_input(
-      "TÊN KHÁCH HÀNG:",
-      placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)",
-      key="input_name",
-  )
-  c_phone = st.text_input(
-      "SỐ ĐIỆN THOẠI:",
-      placeholder="Ví dụ: 0909xxxxxx",
-      key="input_phone",
-  )
-
-  st.write("")
-  if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
-    st.session_state.customer_name = (
-        c_name.strip() if c_name.strip() else "Khách vãng lai"
-    )
-    st.session_state.customer_phone = (
-        c_phone.strip() if c_phone.strip() else "Không có"
+    st.markdown("<div class='app-card'>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:18px; font-weight:900; color:#059669;"
+        " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
+        " #f1f5f9; text-align:center;'>🚖 TẠO CUỐC XE MỚI</div>",
+        unsafe_allow_html=True,
     )
 
-    # Sinh mã cuộc xe dựa trên thời gian thực (Giờ Việt Nam)
-    vn_now = datetime.utcnow() + timedelta(hours=7)
-    st.session_state.ma_cuoc_xe = f"CX_{vn_now.strftime('%Y%m%d_%H%M%S')}"
-    st.session_state.start_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
+    c_name = st.text_input(
+        "TÊN KHÁCH HÀNG:",
+        placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)",
+        key="input_name",
+    )
+    c_phone = st.text_input(
+        "SỐ ĐIỆN THOẠI:",
+        placeholder="Ví dụ: 0909xxxxxx",
+        key="input_phone",
+    )
 
-    # Đẩy ngay dữ liệu khởi tạo vào sheet CACHE
-    if is_connected is True and sheet_cache:
-      try:
-        new_row = [
-            "1",
-            st.session_state.ma_cuoc_xe,
-            st.session_state.start_time_str,
-            "",
-            "",
-            st.session_state.customer_name,
-            st.session_state.customer_phone,
-            "0",
-            DRIVER_NAME,
-            str(UNIT_PRICE),
-            "0",
-            "0",
-            "Đang chạy",
-        ]
-        sheet_cache.append_row(new_row)
-      except Exception as e:
-        st.error(f"Lỗi ghi Cache: {e}")
+    st.write("")
+    if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
+        st.session_state.customer_name = (
+            c_name.strip() if c_name.strip() else "Khách vãng lai"
+        )
+        st.session_state.customer_phone = (
+            c_phone.strip() if c_phone.strip() else "Không có"
+        )
 
-    st.session_state.mock_state = "running"
-    st.rerun()
-  st.markdown("</div>", unsafe_allow_html=True)
+        # Sinh mã cuốc xe theo giờ Việt Nam (UTC+7)
+        vn_now = datetime.utcnow() + timedelta(hours=7)
+        st.session_state.ma_cuoc_xe = f"CX_{vn_now.strftime('%Y%m%d_%H%M%S')}"
+        st.session_state.start_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Đẩy dữ liệu khởi tạo vào sheet CACHE
+        if is_connected is True and sheet_cache:
+            try:
+                new_row = [
+                    "1",                                 # STT
+                    st.session_state.ma_cuoc_xe,         # MÃ CUỐC XE
+                    st.session_state.start_time_str,     # THỜI GIAN BẮT ĐẦU
+                    "",                                  # THỜI GIAN KẾT THÚC
+                    "",                                  # TỔNG THỜI GIAN
+                    st.session_state.customer_name,      # TÊN KHÁCH HÀNG
+                    st.session_state.customer_phone,     # SĐT KHÁCH HÀNG
+                    "0",                                 # SỐ TIỀN THU
+                    DRIVER_NAME,                         # TÊN TÀI XẾ
+                    str(UNIT_PRICE),                     # ĐƠN GIÁ
+                    "0",                                 # SỐ KM
+                    "0",                                 # TỔNG TIỀN
+                    "Đang chạy",                         # TRẠNG THÁI
+                ]
+                sheet_cache.append_row(new_row)
+            except Exception as e:
+                st.error(f"Lỗi ghi Cache: {e}")
+
+        st.session_state.mock_state = "running"
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
 # 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN (TÍCH HỢP GPS)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
-  query_params = st.query_params
-  action_trigger = query_params.get("action", None)
+    query_params = st.query_params
+    action_trigger = query_params.get("action", None)
 
-  if action_trigger == "end":
-    final_km = query_params.get("km", "0")
-    final_time = query_params.get("time", "00:00:00")
-    final_money = query_params.get("money", "0")
+    if action_trigger == "end":
+        final_km = query_params.get("km", "0")
+        final_time = query_params.get("time", "00:00:00")
+        final_money = query_params.get("money", "0")
 
-    if is_connected is True and sheet_cache:
-      try:
-        cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
-        if cell:
-          row_idx = cell.row
-          # Lấy giờ Việt Nam
-          vn_now = datetime.utcnow() + timedelta(hours=7)
-          end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
-          sheet_cache.update_cell(row_idx, 4, end_time_str)  
-          sheet_cache.update_cell(row_idx, 5, final_time)  
-          sheet_cache.update_cell(row_idx, 11, final_km)  
-          sheet_cache.update_cell(row_idx, 12, final_money)  
-          sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán") 
-      except Exception:
-        pass
+        if is_connected is True and sheet_cache:
+            try:
+                cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
+                if cell:
+                    row_idx = cell.row
+                    vn_now = datetime.utcnow() + timedelta(hours=7)
+                    end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # Cập nhật thông tin chốt chuyến vào Cache
+                    sheet_cache.update_cell(row_idx, 4, end_time_str)     # Cột 4: THỜI GIAN KẾT THÚC
+                    sheet_cache.update_cell(row_idx, 5, final_time)       # Cột 5: TỔNG THỜI GIAN
+                    sheet_cache.update_cell(row_idx, 8, final_money)      # Cột 8: SỐ TIỀN THU
+                    sheet_cache.update_cell(row_idx, 11, final_km)        # Cột 11: SỐ KM
+                    sheet_cache.update_cell(row_idx, 12, final_money)     # Cột 12: TỔNG TIỀN
+                    sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán")# Cột 13: TRẠNG THÁI
+            except Exception:
+                pass
 
-  elif action_trigger == "pay":
-    if is_connected is True and sheet_cache and sheet_data:
-      try:
-        cache_rows = sheet_cache.get_all_values()
-        if len(cache_rows) > 1:
-          row_to_move = cache_rows[1] 
-          row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
-          sheet_data.append_row(row_to_move) 
-          sheet_cache.clear() 
-          sheet_cache.append_row([
-              "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
-              "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
-              "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
-          ])
-      except Exception:
-        pass
+    elif action_trigger == "pay":
+        if is_connected is True and sheet_cache and sheet_data:
+            try:
+                cache_rows = sheet_cache.get_all_values()
+                if len(cache_rows) > 1:
+                    # Lấy dữ liệu cuốc xe từ CACHE đẩy sang DATA
+                    for row in cache_rows[1:]:
+                        if len(row) >= 13:
+                            row[12] = "Đã thanh toán"  # Cột 13: TRẠNG THÁI
+                            if row[7] == "0" or not row[7]:
+                                row[7] = row[11]      # Cột 8: SỐ TIỀN THU = TỔNG TIỀN
+                            sheet_data.append_row(row)  # Ghi lịch sử doanh số vào DATA
+                    
+                    # XÓA SACH CACHE CŨ & Thiết lập lại dòng tiêu đề
+                    sheet_cache.clear() 
+                    sheet_cache.append_row([
+                        "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
+                        "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
+                        "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
+                    ])
+            except Exception as e:
+                st.error(f"Lỗi lưu DATA / Xóa CACHE: {e}")
 
-    # Chuyển sang màn hình hoàn tất
-    st.session_state.mock_state = "paid"
-    st.query_params.clear()
-    st.rerun()
+        # Chuyển sang màn hình hoàn tất thanh toán
+        st.session_state.mock_state = "paid"
+        st.query_params.clear()
+        st.rerun()
 
-  gps_component_code = f"""
+    gps_component_code = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -449,24 +453,25 @@ elif st.session_state.mock_state == "running":
     </body>
     </html>
     """
-  components.html(gps_component_code, height=450)
+    components.html(gps_component_code, height=450)
 
 # -------------------------------------------------------------------------
-# 3. MÀN HÌNH HOÀN TẤT & BẮT ĐẦU CUỐC MỚI
+# 3. MÀN HÌNH HOÀN TẤT & NHẬN CUỐC XE MỚI
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "paid":
-  st.markdown("<div class='app-card' style='text-align:center;'>", unsafe_allow_html=True)
-  st.markdown("<h3 style='color:#059669;'>✅ THANH TOÁN THÀNH CÔNG!</h3>", unsafe_allow_html=True)
-  st.write("Dữ liệu cuốc xe đã được lưu vào danh sách (DATA) và dọn dẹp bộ nhớ đệm (CACHE).")
-  st.write("")
-  
-  if st.button("🚀 BẮT ĐẦU CUỐC MỚI", type="primary", use_container_width=True):
-    st.session_state.mock_state = "home"
-    st.session_state.customer_name = ""
-    st.session_state.customer_phone = ""
-    st.session_state.ma_cuoc_xe = ""
-    st.rerun()
-  st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='app-card' style='text-align:center;'>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#059669; margin-bottom:8px;'>✅ THANH TOÁN THÀNH CÔNG!</h3>", unsafe_allow_html=True)
+    st.write("Dữ liệu cuốc xe đã được lưu chính xác vào sheet **DATA** để theo dõi doanh số, đồng thời bộ nhớ đệm **CACHE** đã được làm sạch.")
+    st.write("")
+    
+    if st.button("🆕 NHẬN CUỐC XE MỚI", type="primary", use_container_width=True):
+        st.session_state.mock_state = "home"
+        st.session_state.customer_name = ""
+        st.session_state.customer_phone = ""
+        st.session_state.ma_cuoc_xe = ""
+        st.session_state.start_time_str = ""
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
