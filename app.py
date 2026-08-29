@@ -91,21 +91,13 @@ if "mock_state" not in st.session_state:
 st.markdown("<h1 style='text-align:center; color:#059669; margin-bottom:0px; font-size:28px;'>🛵 4567 XE ÔM</h1>", unsafe_allow_html=True)
 st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
 
-# KHUNG THẺ CHÍNH
-#st.markdown("<div class='app-card'>", unsafe_allow_html=True)
+# KHUNG THẺ CHÍNH (ĐÃ MỞ LẠI)
+st.markdown("<div class='app-card'>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-    
-    # THAY VẤN ĐỀ TRỐNG BẰNG 1 BĂNG THÔNG BÁO CÓ CHỮ RẤT ĐẸP MẮT
-    st.markdown("""
-        <div style='background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 15px;'>
-            <span style='color: #047857; font-weight: bold; font-size: 15px;'>🌟 Chúc ní một ngày chạy xe bội thu, khách đông nườm nượp!</span>
-        </div>
-    """, unsafe_allow_html=True)
-
     st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
     
     st.markdown("<div style='font-weight:bold; font-size:15px; color:#475569; margin-bottom:6px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
@@ -152,8 +144,14 @@ elif st.session_state.mock_state == "result":
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# NÚT ZALO Ở ĐÁY
+# NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
 # ============================================================
 st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
 st.markdown('<a href="https://zalo.me/0978666620" class="btn-zalo-single" target="_blank">💬 LIÊN HỆ HỖ TRỢ ZALO</a>', unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
+
+st.markdown("""
+    <div style='background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px; text-align: center; margin-top: 15px;'>
+        <span style='color: #047857; font-weight: bold; font-size: 15px;'>🌟 Chúc ní một ngày chạy xe bội thu, khách đông nườm nượp!</span>
+    </div>
+""", unsafe_allow_html=True)
