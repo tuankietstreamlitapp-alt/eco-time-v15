@@ -165,61 +165,65 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
 # 4. XỬ LÝ KẾT THÚC CHUYẾN TỪ URL (CHUYỂN DATA TỪ CACHE SANG DATA)
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
-    # 1. Lấy dữ liệu từ URL truyền về
-    dist_val = float(st.query_params.get("dist", 0.0))
-    start_ts = float(st.query_params.get("start", time.time()))
-    trip_id_from_url = st.query_params.get("trip_id", f"C4567_{int(start_ts)}")
-    cname = st.query_params.get("cname", "Khách vãng lai").replace("%20", " ")
-    cphone = st.query_params.get("cphone", "")
-    
-    # 2. Cập nhật trạng thái
-    st.session_state.trip_active = False
-    st.session_state.trip_ended_at = time.time()
-    st.session_state.trip_total_m = dist_val
-    st.session_state.cust_name = cname
-    st.session_state.cust_phone = cphone
-    st.session_state.trip_id = trip_id_from_url
-    
-    # 3. Tính toán hóa đơn
-    start_time_str = get_vn_time(start_ts)
-    end_time_str = get_vn_time(st.session_state['trip_ended_at'])
-    time_diff = max(0, int(st.session_state['trip_ended_at'] - start_ts))
-    hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
-    total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
+    try:
+        # 1. Lấy dữ liệu an toàn từ URL truyền về
+        dist_val = float(st.query_params.get("dist", 0.0))
+        start_ts = float(st.query_params.get("start", time.time()))
+        
+        # Đồng nhất tên biến để tránh NameError
+        trip_id_val = st.query_params.get("trip_id", f"C4567_{int(start_ts)}")
+        cname = str(st.query_params.get("cname", "Khách vãng lai")).replace("%20", " ")
+        cphone = str(st.query_params.get("cphone", ""))
+        
+        # 2. Cập nhật trạng thái session
+        st.session_state.trip_active = False
+        st.session_state.trip_ended_at = time.time()
+        st.session_state.trip_total_m = dist_val
+        st.session_state.cust_name = cname
+        st.session_state.cust_phone = cphone
+        st.session_state.trip_id = trip_id_val
+        
+        # 3. Tính toán thời gian & cước phí
+        start_time_str = get_vn_time(start_ts)
+        end_time_str = get_vn_time(st.session_state['trip_ended_at'])
+        time_diff = max(0, int(st.session_state['trip_ended_at'] - start_ts))
+        hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
+        total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
-    km_val = round(dist_val / 1000.0, 2)
-    fare_val = round(km_val * DONG_GIA)
-    
-# 4. Định dạng Data 13 Cột Khớp Với Trang Tính (Ép kiểu Native tuyệt đối)
-    row_data = [
-        int(get_next_stt("DATA_4567")), 
-        str(trip_id_from_url), 
-        str(start_time_str), 
-        str(end_time_str), 
-        str(total_time_str),                 
-        str(st.session_state.cust_name), 
-        str(st.session_state.cust_phone), 
-        int(fare_val),                         
-        str(st.session_state['user_name']), 
-        int(DONG_GIA), 
-        float(km_val), 
-        int(fare_val), 
-        "HOÀN THÀNH CUỐC XE"            
-    ]
-    
-    # 5. Xử lý Google Sheet: Thêm vào DATA, Xóa khỏi CACHE
-    append_row_to_sheet("DATA_4567", row_data)
-    delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id_from_url)
-    update_driver_status(st.session_state["user_phone"], "Trực tuyến")
-    
-    # 6. Dọn dẹp URL, CHỈ GIỮ LẠI SỐ ĐIỆN THOẠI để không văng đăng nhập
+        km_val = round(dist_val / 1000.0, 2)
+        fare_val = round(km_val * DONG_GIA)
+        
+        # 4. Chuẩn bị dòng dữ liệu 13 cột khớp hoàn toàn với DATA_4567
+        row_data = [
+            int(get_next_stt("DATA_4567")), 
+            str(trip_id_val), 
+            str(start_time_str), 
+            str(end_time_str), 
+            str(total_time_str),                 
+            str(st.session_state.cust_name), 
+            str(st.session_state.cust_phone), 
+            int(fare_val),                         
+            str(st.session_state['user_name']), 
+            int(DONG_GIA), 
+            float(km_val), 
+            int(fare_val), 
+            "HOÀN THÀNH CUỐC XE"            
+        ]
+        
+        # 5. Ghi vào DATA_4567 và xóa khỏi CACHE_4567
+        append_row_to_sheet("DATA_4567", row_data)
+        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id_val)
+        update_driver_status(st.session_state.get("user_phone", ""), "Trực tuyến")
+        
+    except Exception as e:
+        print(f"Lỗi xử lý kết thúc chuyến: {e}")
+
+    # 6. Dọn dẹp URL, chỉ giữ lại số điện thoại để giữ phiên đăng nhập
     for p in ["action", "dist", "start", "cname", "cphone", "trip_id"]:
         if p in st.query_params: 
             del st.query_params[p]
     
-    # 7. Tải lại trang ngay lập tức để hiện hóa đơn
     st.rerun()
-
 
 # ============================================================
 # 5. MÀN HÌNH ĐĂNG NHẬP
