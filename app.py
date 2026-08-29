@@ -21,6 +21,10 @@ def init_google_sheets():
         "https://www.googleapis.com/auth/drive",
     ]
     creds_dict = dict(st.secrets["gcp_service_account"])
+    
+    # Ép cứng trường type để tránh bị nhận diện nhầm thành None
+    creds_dict["type"] = "service_account"
+
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 
@@ -34,8 +38,6 @@ def init_google_sheets():
   except Exception as e:
     return None, None, str(e)
 
-
-sheet_cache, sheet_data, is_connected = init_google_sheets()
 
 # ============================================================
 # CSS TỐI ƯU GIAO DIỆN
