@@ -38,6 +38,9 @@ def init_google_sheets():
   except Exception as e:
     return None, None, str(e)
 
+# Gọi hàm khởi tạo kết nối và nhận đầy đủ 3 biến giá trị
+sheet_cache, sheet_data, is_connected = init_google_sheets()
+
 
 # ============================================================
 # CSS TỐI ƯU GIAO DIỆN
@@ -200,8 +203,6 @@ if st.session_state.mock_state == "home":
     # Đẩy ngay dữ liệu khởi tạo vào sheet CACHE
     if is_connected is True and sheet_cache:
       try:
-        # Cấu trúc 13 cột:
-        # STT | MÃ CUỐC XE | THỜI GIAN BẮT ĐẦU | THỜI GIAN KẾT THÚC | TỔNG THỜI GIAN | TÊN KHÁCH HÀNG | SĐT KHÁCH HÀNG | SỐ TIỀN THU | TÊN TÀI XẾ | ĐƠN GIÁ | SỐ KM | TỔNG TIỀN | TRẠNG THÁI
         new_row = [
             "1",
             st.session_state.ma_cuoc_xe,
@@ -229,45 +230,37 @@ if st.session_state.mock_state == "home":
 # 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN (TÍCH HỢP GPS & VÒNG LẶP CACHE)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
-  # Xử lý nhận dữ liệu trả về từ Javascript khi bấm Kết thúc hoặc Thanh toán
   query_params = st.query_params
   action_trigger = query_params.get("action", None)
 
   if action_trigger == "end":
-    # Tài xế vừa bấm Kết thúc chuyến đi trên giao diện JS
     final_km = query_params.get("km", "0")
     final_time = query_params.get("time", "00:00:00")
     final_money = query_params.get("money", "0")
 
-    # Cập nhật thông tin vào Sheet CACHE
     if is_connected is True and sheet_cache:
       try:
         cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
         if cell:
           row_idx = cell.row
-          # Cập nhật các cột: THỜI GIAN KẾT THÚC, TỔNG THỜI GIAN, SỐ KM, TỔNG TIỀN, TRẠNG THÁI
           end_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-          sheet_cache.update_cell(row_idx, 4, end_time_str)  # Thời gian kết thúc
-          sheet_cache.update_cell(row_idx, 5, final_time)  # Tổng thời gian
-          sheet_cache.update_cell(row_idx, 11, final_km)  # Số KM
-          sheet_cache.update_cell(row_idx, 12, final_money)  # Tổng tiền
-          sheet_cache.update_cell(
-              row_idx, 13, "Chờ thanh toán"
-          )  # Trạng thái
+          sheet_cache.update_cell(row_idx, 4, end_time_str)
+          sheet_cache.update_cell(row_idx, 5, final_time)
+          sheet_cache.update_cell(row_idx, 11, final_km)
+          sheet_cache.update_cell(row_idx, 12, final_money)
+          sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán")
       except Exception:
         pass
 
   elif action_trigger == "pay":
-    # Tài xế vừa bấm Thanh toán -> chuyển dữ liệu từ CACHE sang DATA và xóa CACHE
     if is_connected is True and sheet_cache and sheet_data:
       try:
         cache_rows = sheet_cache.get_all_values()
         if len(cache_rows) > 1:
-          row_to_move = cache_rows[1]  # Lấy dữ liệu dòng cuốc xe
+          row_to_move = cache_rows[1]
           row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
-          sheet_data.append_row(row_to_move)  # Đẩy vào DATA
-          sheet_cache.clear()  # Xóa sạch CACHE
-          # Thêm lại dòng tiêu đề cho cache để giữ nguyên cấu trúc
+          sheet_data.append_row(row_to_move)
+          sheet_cache.clear()
           sheet_cache.append_row([
               "STT",
               "MÃ CUỐC XE",
@@ -286,7 +279,6 @@ elif st.session_state.mock_state == "running":
       except Exception:
         pass
 
-    # Reset session state về màn hình home
     st.session_state.mock_state = "home"
     st.session_state.customer_name = ""
     st.session_state.customer_phone = ""
@@ -313,7 +305,6 @@ elif st.session_state.mock_state == "running":
     </head>
     <body>
     <div class="app-card">
-        <!-- GIAO DIỆN ĐANG CHẠY -->
         <div id="running-view">
             <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">⏱️ ĐANG TRONG CUỐC XE...</div>
             <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
@@ -339,7 +330,6 @@ elif st.session_state.mock_state == "running":
             <button class="btn-action btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
         </div>
 
-        <!-- GIAO DIỆN THANH TOÁN (ĐỨNG YÊN ĐỂ MINH BẠCH) -->
         <div id="payment-view" style="display: none;">
             <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">💳 XÁC NHẬN THANH TOÁN</div>
             <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
@@ -425,7 +415,6 @@ elif st.session_state.mock_state == "running":
             );
         }}
 
-        // Khi bấm KẾT THÚC CHUYẾN ĐI -> Dừng GPS, đóng băng số liệu, báo Python cập nhật Cache và mở màn hình thanh toán
         function endTrip() {{
             if (watchId !== null) {{
                 navigator.geolocation.clearWatch(watchId);
@@ -436,27 +425,22 @@ elif st.session_state.mock_state == "running":
             let finalTimeStr = document.getElementById('time-val').innerText;
             let finalMoneyNum = Math.round(totalDist * unitPrice);
 
-            // Chốt các con số đứng yên trên giao diện
             document.getElementById('final-km-val').innerText = finalKmStr + " km";
             document.getElementById('final-time-val').innerText = finalTimeStr;
             document.getElementById('final-money-val').innerText = finalMoneyNum.toLocaleString('vi-VN') + " đ";
 
-            // Ẩn màn hình chạy, hiện màn hình thanh toán
             document.getElementById('running-view').style.display = 'none';
             document.getElementById('payment-view').style.display = 'block';
 
-            // Gửi tín hiệu ngầm về Python để cập nhật Sheet CACHE
             let urlParams = new URLSearchParams(window.location.search);
             urlParams.set('action', 'end');
             urlParams.set('km', finalKmStr);
             urlParams.set('time', finalTimeStr);
             urlParams.set('money', finalMoneyNum);
             
-            // Dùng fetch để gọi ngầm update cache không làm reload trang đột ngột
             fetch(window.location.pathname + '?' + urlParams.toString()).catch(() => {{}});
         }}
 
-        // Khi bấm THANH TOÁN -> Gửi tín hiệu xóa cache, lưu data và reset vòng lặp vô hạn
         function confirmPayment() {{
             let urlParams = new URLSearchParams(window.location.search);
             urlParams.set('action', 'pay');
