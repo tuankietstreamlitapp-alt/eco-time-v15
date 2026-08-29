@@ -15,8 +15,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# ============================================================
-# CẤU HÌNH KẾT NỐI GOOGLE SHEETS (ĐÃ AN TOÀN KHÔNG BỊ KEYERROR)
+# CẤU HÌNH KẾT NỐI GOOGLE SHEETS (TỰ ĐỘNG BỔ SUNG THAM SỐ)
 # ============================================================
 try:
     SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
@@ -31,13 +30,24 @@ def init_google_sheet_client():
         "https://www.googleapis.com/auth/drive",
     ]
     
-    # Kiểm tra xem secrets cấu hình theo dạng [connections.gsheets] hay dạng phẳng
+    # Quét linh hoạt các vị trí lưu secrets trên Streamlit Cloud
+    creds_dict = {}
     if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
         creds_dict = dict(st.secrets["connections"]["gsheets"])
+    elif "gsheets" in st.secrets:
+        creds_dict = dict(st.secrets["gsheets"])
     else:
         creds_dict = dict(st.secrets)
-    
-    # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
+
+    # Tự động gán các giá trị mặc định chuẩn Google nếu thiếu
+    if "token_uri" not in creds_dict:
+        creds_dict["token_uri"] = "https://oauth2.googleapis.com/token"
+    if "auth_uri" not in creds_dict:
+        creds_dict["auth_uri"] = "https://accounts.google.com/authorize"
+    if "type" not in creds_dict:
+        creds_dict["type"] = "service_account"
+
+    # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI PRIVATE KEY ---
     raw_key = creds_dict.get("private_key", "")
     if "-----BEGIN PRIVATE KEY-----" in raw_key:
         key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
@@ -45,7 +55,7 @@ def init_google_sheet_client():
         chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
         clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
         creds_dict["private_key"] = clean_key
-    # --------------------------------------------------------------
+    # ------------------------------------------
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
