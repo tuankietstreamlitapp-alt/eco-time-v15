@@ -99,12 +99,12 @@ st.markdown(
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
  st.markdown(
-    """
+     """
     <div class='app-card'>
         <h3 style='color: #059669; text-align: center;'>Tiêu đề trong thẻ</h3>
         <p style='color: #334155;'>Nội dung hoặc chữ ní muốn viết sẽ nằm gọn ở đây nhé!</p>
     </div>
-    """,
+     """,
     unsafe_allow_html=True,
   )
 
