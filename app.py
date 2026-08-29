@@ -134,7 +134,7 @@ if "start_time_str" not in st.session_state:
 UNIT_PRICE = 5000  # 5,000 đ/km
 DRIVER_NAME = "Nguyễn Văn A"
 
-# Kiểm tra xem có dữ liệu tồn đọng trong CACHE không (phòng hờ tài xế lỡ tay refresh app)
+# Kiểm tra xem có dữ liệu tồn đọng thực sự trong CACHE không (phòng hờ tài xế lỡ tay refresh app)
 if (
     st.session_state.mock_state == "home"
     and is_connected is True
@@ -145,11 +145,14 @@ if (
     if len(cache_rows) > 1:
       last_row = cache_rows[1] 
       if len(last_row) >= 13:
-        st.session_state.ma_cuoc_xe = last_row[1]
-        st.session_state.start_time_str = last_row[2]
-        st.session_state.customer_name = last_row[5]
-        st.session_state.customer_phone = last_row[6]
-        st.session_state.mock_state = "running" 
+        trang_thai = last_row[12] if len(last_row) > 12 else ""
+        # CHỈ PHỤC HỒI KHI TRẠNG THÁI THỰC SỰ LÀ ĐANG CHẠY
+        if trang_thai == "Đang chạy":
+          st.session_state.ma_cuoc_xe = last_row[1]
+          st.session_state.start_time_str = last_row[2]
+          st.session_state.customer_name = last_row[5]
+          st.session_state.customer_phone = last_row[6]
+          st.session_state.mock_state = "running" 
   except Exception:
     pass
 
