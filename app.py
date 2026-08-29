@@ -28,11 +28,9 @@ def init_google_sheets():
     # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
     raw_key = creds_dict.get("private_key", "")
     if "-----BEGIN PRIVATE KEY-----" in raw_key:
-        # Lấy phần lõi của key, xóa sạch mọi khoảng trắng, \n, \r bị dư
         key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
         key_body = key_body.replace(" ", "").replace("\\n", "").replace("\n", "").replace("\r", "")
         
-        # Chia lại thành từng dòng 64 ký tự chuẩn xác 100%
         chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
         clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
         creds_dict["private_key"] = clean_key
@@ -134,7 +132,7 @@ if "start_time_str" not in st.session_state:
 UNIT_PRICE = 5000  # 5,000 đ/km
 DRIVER_NAME = "Nguyễn Văn A"
 
-# Kiểm tra xem có dữ liệu tồn đọng thực sự trong CACHE không (phòng hờ tài xế lỡ tay refresh app)
+# Kiểm tra CACHE phòng hờ tài xế lỡ tay refresh app (Chỉ phục hồi khi trạng thái là "Đang chạy")
 if (
     st.session_state.mock_state == "home"
     and is_connected is True
@@ -146,7 +144,6 @@ if (
       last_row = cache_rows[1] 
       if len(last_row) >= 13:
         trang_thai = last_row[12] if len(last_row) > 12 else ""
-        # CHỈ PHỤC HỒI KHI TRẠNG THÁI THỰC SỰ LÀ ĐANG CHẠY
         if trang_thai == "Đang chạy":
           st.session_state.ma_cuoc_xe = last_row[1]
           st.session_state.start_time_str = last_row[2]
@@ -205,12 +202,10 @@ if st.session_state.mock_state == "home":
         c_phone.strip() if c_phone.strip() else "Không có"
     )
 
-    # Sinh mã cuộc xe dựa trên thời gian thực (Giờ Việt Nam)
     vn_now = datetime.utcnow() + timedelta(hours=7)
     st.session_state.ma_cuoc_xe = f"CX_{vn_now.strftime('%Y%m%d_%H%M%S')}"
     st.session_state.start_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Đẩy ngay dữ liệu khởi tạo vào sheet CACHE
     if is_connected is True and sheet_cache:
       try:
         new_row = [
@@ -253,7 +248,6 @@ elif st.session_state.mock_state == "running":
         cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
         if cell:
           row_idx = cell.row
-          # Lấy giờ Việt Nam
           vn_now = datetime.utcnow() + timedelta(hours=7)
           end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
           sheet_cache.update_cell(row_idx, 4, end_time_str)  
@@ -281,29 +275,7 @@ elif st.session_state.mock_state == "running":
       except Exception:
         pass
 
-    # Chuyển sang màn hình hoàn tất
-    st.session_state.mock_state = "paid"
-    st.query_params.clear()
-    st.rerun()
-
-  elif action_trigger == "new_trip_from_payment":
-    if is_connected is True and sheet_cache and sheet_data:
-      try:
-        cache_rows = sheet_cache.get_all_values()
-        if len(cache_rows) > 1:
-          row_to_move = cache_rows[1] 
-          row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
-          sheet_data.append_row(row_to_move) 
-          sheet_cache.clear() 
-          sheet_cache.append_row([
-              "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
-              "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
-              "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
-          ])
-      except Exception:
-        pass
-
-    # Quay về màn hình home (nhập thông tin khách hàng mới)
+    # QUAY THẲNG VỀ MÀN HÌNH BẮT ĐẦU ĐỂ TẠO VÒNG LẶP LIÊN TỤC
     st.session_state.mock_state = "home"
     st.session_state.customer_name = ""
     st.session_state.customer_phone = ""
@@ -324,7 +296,6 @@ elif st.session_state.mock_state == "running":
         .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
         .btn-end {{ background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
         .btn-pay {{ background: #059669; color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }}
-        .btn-new-trip {{ background: #0284c7; color: white; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); }}
         .btn-action:hover {{ opacity: 0.9; }}
         .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
         .customer-tag {{ font-size: 14px; color: #0284c7; background: #f0f9ff; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; border: 1px solid #bae6fd; }}
@@ -362,7 +333,7 @@ elif st.session_state.mock_state == "running":
         <div id="payment-view" style="display: none;">
             <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">💳 XÁC NHẬN THANH TOÁN</div>
             <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
-            <div style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 12px; font-weight: bold; background: #f1f5f9; padding: 8px; border-radius: 8px;">📋 Thông tin đã chốt. Mời khách thanh toán!</div>
+            <div style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 12px; font-weight: bold; background: #f1f5f9; padding: 8px; border-radius: 8px;">📋 Đã chốt chuyến. Bấm thanh toán để tạo cuốc mới!</div>
             
             <div class="metric-row">
                 <span>SỐ KM:</span>
@@ -381,8 +352,7 @@ elif st.session_state.mock_state == "running":
                 <span id="final-money-val" style="font-weight:900;">0 đ</span>
             </div>
 
-            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ XÁC NHẬN THANH TOÁN</button>
-            <button class="btn-action btn-new-trip" onclick="createNewTrip()">🚀 TẠO CUỐC XE MỚI</button>
+            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ XÁC NHẬN THANH TOÁN & TẠO CUỐC MỚI</button>
         </div>
     </div>
 
@@ -476,34 +446,11 @@ elif st.session_state.mock_state == "running":
             urlParams.set('action', 'pay');
             window.location.search = urlParams.toString();
         }}
-
-        function createNewTrip() {{
-            let urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('action', 'new_trip_from_payment');
-            window.location.search = urlParams.toString();
-        }}
     </script>
     </body>
     </html>
     """
-  components.html(gps_component_code, height=520)
-
-# -------------------------------------------------------------------------
-# 3. MÀN HÌNH HOÀN TẤT & BẮT ĐẦU CUỐC MỚI
-# -------------------------------------------------------------------------
-elif st.session_state.mock_state == "paid":
-  st.markdown("<div class='app-card' style='text-align:center;'>", unsafe_allow_html=True)
-  st.markdown("<h3 style='color:#059669;'>✅ THANH TOÁN THÀNH CÔNG!</h3>", unsafe_allow_html=True)
-  st.write("Dữ liệu cuốc xe đã được lưu vào danh sách (DATA) và dọn dẹp bộ nhớ đệm (CACHE).")
-  st.write("")
-  
-  if st.button("🚀 BẮT ĐẦU CUỐC MỚI", type="primary", use_container_width=True):
-    st.session_state.mock_state = "home"
-    st.session_state.customer_name = ""
-    st.session_state.customer_phone = ""
-    st.session_state.ma_cuoc_xe = ""
-    st.rerun()
-  st.markdown("</div>", unsafe_allow_html=True)
+  components.html(gps_component_code, height=480)
 
 # ============================================================
 # NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
