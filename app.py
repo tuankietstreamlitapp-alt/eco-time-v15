@@ -1,8 +1,8 @@
-import time
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="4567 Xe Ôm - Đồng Hồ Minh Bạch", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm - GPS Thực Tế", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -79,24 +79,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Khởi tạo các biến trạng thái
+# Khởi tạo trạng thái ứng dụng
 if "mock_state" not in st.session_state:
-    st.session_state.mock_state = "home"
-if "start_time" not in st.session_state:
-    st.session_state.start_time = 0.0
+  st.session_state.mock_state = "home"
 if "customer_name" not in st.session_state:
-    st.session_state.customer_name = ""
+  st.session_state.customer_name = ""
 if "customer_phone" not in st.session_state:
-    st.session_state.customer_phone = ""
-if "final_km" not in st.session_state:
-    st.session_state.final_km = 0.0
-if "final_time" not in st.session_state:
-    st.session_state.final_time = "00:00:00"
-if "final_money" not in st.session_state:
-    st.session_state.final_money = 0
+  st.session_state.customer_phone = ""
 
-# Cấu hình đơn giá mặc định (5,000 đ/km)
-UNIT_PRICE = 5000
+UNIT_PRICE = 5000  # 5,000 đ/km
 
 # TIÊU ĐỀ APP
 st.markdown(
@@ -107,17 +98,15 @@ st.markdown(
 st.markdown(
     "<div style='text-align:center; font-size:15px; color:#64748b;"
     " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
-    " style='color:#10b981;'>● Sẵn sàng</span></div>",
+    " style='color:#10b981;'>● Sẵn sàng GPS</span></div>",
     unsafe_allow_html=True,
 )
-
-# KHUNG THẺ CHÍNH
-st.markdown("<div class='app-card'>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
+  st.markdown("<div class='app-card'>", unsafe_allow_html=True)
   st.markdown(
       "<div style='font-size:18px; font-weight:900; color:#059669;"
       " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
@@ -140,117 +129,139 @@ if st.session_state.mock_state == "home":
   if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
     st.session_state.customer_name = c_name
     st.session_state.customer_phone = c_phone
-    st.session_state.start_time = (
-        time.time()
-    )  # Mốc thời gian bắt đầu chính xác từ 0
     st.session_state.mock_state = "running"
     st.rerun()
+  st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY (BẮT ĐẦU TỪ 0 VÀ NHẢY THEO THỜI GIAN THỰC)
+# 2. MÀN HÌNH ĐANG CHẠY - THEO DÕI VỊ TRÍ GPS THỰC TẾ
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
-  st.markdown(
-      "<div style='font-size:18px; font-weight:900; color:#059669;"
-      " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
-      " #f1f5f9; text-align:center;'>⏱️ ĐANG TRONG CUỐC XE...</div>",
-      unsafe_allow_html=True,
-  )
+  # Nhúng mã HTML/JS thông minh để truy xuất GPS trực tiếp từ trình duyệt điện thoại
+  gps_component_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: sans-serif; background: transparent; margin: 0; padding: 0; }}
+        .app-card {{ background: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; }}
+        .metric-row {{ font-size: 18px; font-weight: bold; color: #334155; padding: 12px 0; border-bottom: 2px dashed #f1f5f9; display: flex; justify-content: space-between; align-items: center; }}
+        .btn-end {{ background: #dc2626; color: white; border: none; width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
+        .btn-end:hover {{ opacity: 0.9; }}
+        .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
+    </style>
+    </head>
+    <body>
+    <div class="app-card">
+        <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;">⏱️ ĐANG ĐO KHOẢNG CÁCH GPS...</div>
+        <div id="status" class="gps-status">🛰️ Đang kết nối tín hiệu vệ tinh...</div>
+        
+        <div class="metric-row">
+            <span>SỐ KM:</span>
+            <span id="km-val" style="color:#0284c7;">0.00 km</span>
+        </div>
+        <div class="metric-row">
+            <span>THỜI GIAN ĐI:</span>
+            <span id="time-val" style="color:#059669;">00:00:00</span>
+        </div>
+        <div class="metric-row">
+            <span>ĐƠN GIÁ:</span>
+            <span>{UNIT_PRICE:,} đ/km</span>
+        </div>
+        <div class="metric-row" style="font-size:21px; color:#dc2626; border-bottom: none;">
+            <span>THÀNH TIỀN:</span>
+            <span id="money-val" style="font-weight:900;">0 đ</span>
+        </div>
 
-  # Tính số giây trôi qua thực tế
-  elapsed_seconds = int(time.time() - st.session_state.start_time)
-  hours = elapsed_seconds // 3600
-  minutes = (elapsed_seconds % 3600) // 60
-  seconds = elapsed_seconds % 60
-  time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        <button class="btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
+    </div>
 
-  # Quãng đường tính từ 0 (giả lập tốc độ đô thị ~20km/h)
-  current_km = (elapsed_seconds / 3600.0) * 20.0
-  current_money = int(current_km * UNIT_PRICE)
+    <script>
+        let watchId = null;
+        let prevLat = null;
+        let prevLon = null;
+        let totalDist = 0; // km
+        let unitPrice = {UNIT_PRICE};
+        let seconds = 0;
+        
+        // Đồng hồ đếm thời gian chuyến đi
+        let timerInterval = setInterval(() => {{
+            seconds++;
+            let h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+            let m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+            let s = String(seconds % 60).padStart(2, '0');
+            document.getElementById('time-val').innerText = h + ":" + m + ":" + s;
+        }}, 1000);
 
-  # Hiển thị trực tiếp các thông số bắt đầu từ 0
-  st.markdown(
-      f"<div class='metric-row'>SỐ KM: <span style='color:#0284c7;"
-      f" float:right;'>{current_km:.2f} km</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row'>THỜI GIAN ĐI: <span style='color:#059669;"
-      f" float:right;'>{time_str}</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row'>ĐƠN GIÁ: <span"
-      f" style='float:right;'>{UNIT_PRICE:,} đ/km</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row' style='font-size:21px; color:#dc2626;"
-      f" border-bottom: none;'>THÀNH TIỀN: <span style='float:right;"
-      f" font-weight:900;'>{current_money:,} đ</span></div>",
-      unsafe_allow_html=True,
-  )
+        // Công thức Haversine tính khoảng cách giữa 2 tọa độ GPS (km)
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {{
+            let R = 6371; 
+            let dLat = deg2rad(lat2 - lat1);
+            let dLon = deg2rad(lon2 - lon1);
+            let a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2); 
+            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c;
+        }}
 
-  st.write("")
-  if st.button(
-      "🛑 KẾT THÚC CHUYẾN ĐI", type="primary", use_container_width=True
-  ):
-    st.session_state.final_km = current_km
-    st.session_state.final_time = time_str
-    st.session_state.final_money = current_money
-    st.session_state.mock_state = "result"
-    st.rerun()
+        function deg2rad(deg) {{
+            return deg * (Math.PI / 180);
+        }}
 
-  # Cập nhật liên tục mỗi giây
-  time.sleep(1)
-  st.rerun()
+        // Kích hoạt định vị GPS thực tế trên điện thoại
+        if (navigator.geolocation) {{
+            document.getElementById('status').innerText = "🛰️ GPS đang hoạt động chính xác!";
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {{
+                    let lat = position.coords.latitude;
+                    let lon = position.coords.longitude;
+                    let accuracy = position.coords.accuracy;
 
-# -------------------------------------------------------------------------
-# 3. MÀN HÌNH KẾT QUẢ (CHỐT SỐ LIỆU MINH BẠCH)
-# -------------------------------------------------------------------------
-elif st.session_state.mock_state == "result":
-  st.markdown(
-      "<div style='font-size:18px; font-weight:900; color:#059669;"
-      " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
-      " #f1f5f9; text-align:center;'>📋 KẾT QUẢ CUỐC ĐI</div>",
-      unsafe_allow_html=True,
-  )
+                    if (prevLat !== null && prevLon !== null) {{
+                        let dist = getDistanceFromLatLonInKm(prevLat, prevLon, lat, lon);
+                        // Lọc nhiễu: chỉ cộng dồn khi dịch chuyển > 3 mét và độ chính xác GPS tốt (<50m)
+                        if (dist > 0.003 && accuracy < 50) {{
+                            totalDist += dist;
+                        }}
+                    }}
+                    prevLat = lat;
+                    prevLon = lon;
 
-  if st.session_state.customer_name:
-    st.markdown(
-        f"<div style='font-size:15px; color:#334155; margin-bottom:8px;'>Khách:"
-        f" <b>{st.session_state.customer_name}</b> ({st.session_state.customer_phone})</div>",
-        unsafe_allow_html=True,
-    )
+                    let money = Math.round(totalDist * unitPrice);
+                    document.getElementById('km-val').innerText = totalDist.toFixed(2) + " km";
+                    document.getElementById('money-val').innerText = money.toLocaleString('vi-VN') + " đ";
+                }},
+                (error) => {{
+                    document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị trên điện thoại!";
+                }},
+                {{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }}
+            );
+        }} else {{
+            document.getElementById('status').innerText = "❌ Trình duyệt không hỗ trợ GPS!";
+        }}
 
-  st.markdown(
-      f"<div class='metric-row'>SỐ KM: <span style='color:#0284c7;"
-      f" float:right;'>{st.session_state.final_km:.2f} km</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row'>THỜI GIAN ĐI: <span style='color:#059669;"
-      f" float:right;'>{st.session_state.final_time}</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row'>ĐƠN GIÁ: <span"
-      f" style='float:right;'>{UNIT_PRICE:,} đ/km</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row' style='font-size:21px; color:#059669;"
-      f" border-bottom: none;'>THÀNH TIỀN: <span style='float:right;"
-      f" font-weight:900;'>{st.session_state.final_money:,} đ</span></div>",
-      unsafe_allow_html=True,
-  )
-
-  st.write("")
-  if st.button("♻️ NHẬN CUỐC XE MỚI", type="primary", use_container_width=True):
-    st.session_state.mock_state = "home"
-    st.rerun()
-
-st.markdown("</div>", unsafe_allow_html=True)
+        function endTrip() {{
+            if (watchId !== null) {{
+                navigator.geolocation.clearWatch(watchId);
+            }}
+            clearInterval(timerInterval);
+            
+            // Lưu thông tin vào sessionStorage để trang chính đọc lại khi tải lại
+            sessionStorage.setItem('final_km', totalDist.toFixed(2));
+            sessionStorage.setItem('final_time', document.getElementById('time-val').innerText);
+            sessionStorage.setItem('final_money', Math.round(totalDist * unitPrice));
+            
+            // Tải lại trang Streamlit để chuyển sang màn hình kết quả
+            window.location.reload();
+        }}
+    </script>
+    </body>
+    </html>
+    """
+  components.html(gps_component_code, height=430)
 
 # ============================================================
 # NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
