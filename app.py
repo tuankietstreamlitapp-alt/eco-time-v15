@@ -21,8 +21,6 @@ def init_google_sheets():
         "https://www.googleapis.com/auth/drive",
     ]
     creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # Ép cứng trường type để tránh bị nhận diện nhầm thành None
     creds_dict["type"] = "service_account"
 
     # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
@@ -153,6 +151,35 @@ if (
   except Exception:
     pass
 
+# Kiểm tra query params từ Python (xử lý sự kiện thanh toán)
+query_params = st.query_params
+action_trigger = query_params.get("action", None)
+
+if action_trigger == "pay":
+  if is_connected is True and sheet_cache and sheet_data:
+    try:
+      cache_rows = sheet_cache.get_all_values()
+      if len(cache_rows) > 1:
+        row_to_move = cache_rows[1] 
+        row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
+        sheet_data.append_row(row_to_move) 
+        sheet_cache.clear() 
+        sheet_cache.append_row([
+            "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
+            "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
+            "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
+        ])
+    except Exception:
+      pass
+
+  st.session_state.mock_state = "home"
+  st.session_state.customer_name = ""
+  st.session_state.customer_phone = ""
+  st.session_state.ma_cuoc_xe = ""
+  st.session_state.start_time_str = ""
+  st.query_params.clear()
+  st.rerun()
+
 # TIÊU ĐỀ APP
 st.markdown(
     "<h1 style='text-align:center; color:#059669; margin-bottom:0px;"
@@ -235,9 +262,6 @@ if st.session_state.mock_state == "home":
 # 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN (TÍCH HỢP GPS)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
-  query_params = st.query_params
-  action_trigger = query_params.get("action", None)
-
   if action_trigger == "end":
     final_km = query_params.get("km", "0")
     final_time = query_params.get("time", "00:00:00")
@@ -257,32 +281,6 @@ elif st.session_state.mock_state == "running":
           sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán") 
       except Exception:
         pass
-
-  elif action_trigger == "pay":
-    if is_connected is True and sheet_cache and sheet_data:
-      try:
-        cache_rows = sheet_cache.get_all_values()
-        if len(cache_rows) > 1:
-          row_to_move = cache_rows[1] 
-          row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
-          sheet_data.append_row(row_to_move) 
-          sheet_cache.clear() 
-          sheet_cache.append_row([
-              "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
-              "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
-              "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
-          ])
-      except Exception:
-        pass
-
-    # QUAY THẲNG VỀ MÀN HÌNH BẮT ĐẦU ĐỂ TẠO VÒNG LẶP LIÊN TỤC
-    st.session_state.mock_state = "home"
-    st.session_state.customer_name = ""
-    st.session_state.customer_phone = ""
-    st.session_state.ma_cuoc_xe = ""
-    st.session_state.start_time_str = ""
-    st.query_params.clear()
-    st.rerun()
 
   gps_component_code = f"""
     <!DOCTYPE html>
@@ -442,9 +440,9 @@ elif st.session_state.mock_state == "running":
         }}
 
         function confirmPayment() {{
-            let urlParams = new URLSearchParams(window.location.search);
+            let urlParams = new URLSearchParams(window.parent.location.search);
             urlParams.set('action', 'pay');
-            window.location.search = urlParams.toString();
+            window.parent.location.search = urlParams.toString();
         }}
     </script>
     </body>
