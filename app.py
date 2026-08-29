@@ -5,14 +5,13 @@ st.set_page_config(
 )
 
 # ============================================================
-# CSS TỐI ƯU GIAO DIỆN KHÔNG BỊ CẮT CHỮ, THOÁNG ĐÃNG, TO RÕ
+# CSS TỐI ƯU: GỌN GÀNG, SẠCH SẼ, KHÔNG DƯ THỪA
 # ============================================================
 st.markdown(
     """
     <style>
     .stApp { background-color: #f1f5f9; }
     
-    /* Khắc phục triệt để lỗi bị cắt chữ ở trên cùng */
     .block-container { 
         max-width: 500px; 
         padding-top: 1rem !important; 
@@ -21,10 +20,9 @@ st.markdown(
         padding-right: 1rem; 
     }
     
-    /* Ẩn bớt các thành phần mặc định thừa của Streamlit nếu cần để thoáng màn hình */
     header { visibility: hidden; }
     
-    /* Nút bấm siêu to khổng lồ cho bác tài dễ bấm */
+    /* Nút bấm siêu to khổng lồ cho bác tài */
     div.stButton > button { 
         border-radius: 14px !important; 
         font-weight: 900 !important; 
@@ -32,7 +30,7 @@ st.markdown(
         min-height: 60px !important; 
     }
     
-    /* Khung thẻ nội dung */
+    /* Khung thẻ nội dung chính */
     .app-card { 
         background: #ffffff; 
         border-radius: 18px; 
@@ -41,6 +39,20 @@ st.markdown(
         margin-top: 10px; 
         margin-bottom: 15px; 
         border: 1px solid #e2e8f0; 
+    }
+    
+    /* Ô nhập liệu tinh tế, gọn gàng */
+    .stTextInput input {
+        background-color: #f8fafc !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 12px !important;
+        font-size: 16px !important;
+        color: #1e293b !important;
+        padding: 10px 14px !important;
+    }
+    .stTextInput input:focus {
+        border-color: #059669 !important;
+        box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
     }
     
     /* Dòng thông số */
@@ -52,7 +64,7 @@ st.markdown(
         border-bottom: 2px dashed #f1f5f9;
     }
     
-    /* Nút Zalo liên hệ độc lập ở đáy */
+    /* Nút Zalo liên hệ ở đáy */
     .btn-zalo-single { 
         background: #0284c7; 
         color: white !important; 
@@ -75,20 +87,20 @@ st.markdown(
 if "mock_state" not in st.session_state:
     st.session_state.mock_state = "home"
 
-# TIÊU ĐỀ APP (Đã hạ xuống thấp, không bị thanh công cụ che khuất)
+# TIÊU ĐỀ APP
 st.markdown("<h1 style='text-align:center; color:#059669; margin-bottom:0px; font-size:28px;'>🛵 4567 XE ÔM</h1>", unsafe_allow_html=True)
 st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
 
-# MỞ KHUNG THẺ CHÍNH (Đã bỏ thanh màu tránh rườm rà phía trên)
+# KHUNG THẺ CHÍNH
 st.markdown("<div class='app-card'>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-    st.markdown("<div style='font-weight:bold; font-size:16px; color:#1e293b; margin-bottom:10px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
-    st.text_input("TÊN KHÁCH HÀNG:", placeholder="Bỏ trống nếu khách vãng lai")
-    st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Nhập SĐT khách hàng...")
+    st.markdown("<div style='font-weight:bold; font-size:16px; color:#1e293b; margin-bottom:8px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
+    st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)")
+    st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Ví dụ: 0909xxxxxx")
 
     st.write("")
     if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
@@ -96,7 +108,7 @@ if st.session_state.mock_state == "home":
         st.rerun()
 
 # -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY (HIỂN THỊ 4 THÔNG SỐ)
+# 2. MÀN HÌNH ĐANG CHẠY
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
     st.markdown("<div style='text-align:center; color:#059669; font-weight:bold; font-size:17px; margin-bottom:10px;'>⏱️ ĐANG TRONG CUỐC XE...</div>", unsafe_allow_html=True)
@@ -130,7 +142,7 @@ elif st.session_state.mock_state == "result":
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# KHU VỰC HỖ TRỢ (GỘP THÀNH 1 NÚT ZALO DUY NHẤT Ở ĐÁY)
+# NÚT ZALO Ở ĐÁY
 # ============================================================
 st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
 st.markdown('<a href="https://zalo.me/0978666620" class="btn-zalo-single" target="_blank">💬 LIÊN HỆ HỖ TRỢ ZALO</a>', unsafe_allow_html=True)
