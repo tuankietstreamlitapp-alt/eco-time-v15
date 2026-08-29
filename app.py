@@ -2,7 +2,7 @@ import time
 import streamlit as st
 
 st.set_page_config(
-    page_title="4567 Xe Ôm - Chạy Thực Tế", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm - Đồng Hồ Minh Bạch", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -111,6 +111,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# KHUNG THẺ CHÍNH
+st.markdown("<div class='app-card'>", unsafe_allow_html=True)
+
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
@@ -137,12 +140,14 @@ if st.session_state.mock_state == "home":
   if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
     st.session_state.customer_name = c_name
     st.session_state.customer_phone = c_phone
-    st.session_state.start_time = time.time()  # Ghi nhận mốc thời gian bắt đầu
+    st.session_state.start_time = (
+        time.time()
+    )  # Mốc thời gian bắt đầu chính xác từ 0
     st.session_state.mock_state = "running"
     st.rerun()
 
 # -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY (NHẢY THEO THỜI GIAN THỰC)
+# 2. MÀN HÌNH ĐANG CHẠY (BẮT ĐẦU TỪ 0 VÀ NHẢY THEO THỜI GIAN THỰC)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
   st.markdown(
@@ -152,22 +157,18 @@ elif st.session_state.mock_state == "running":
       unsafe_allow_html=True,
   )
 
-  # Tính toán thời gian thực trôi qua từ lúc bấm bắt đầu
+  # Tính số giây trôi qua thực tế
   elapsed_seconds = int(time.time() - st.session_state.start_time)
   hours = elapsed_seconds // 3600
   minutes = (elapsed_seconds % 3600) // 60
   seconds = elapsed_seconds % 60
   time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-  # Mô phỏng quãng đường tăng theo thời gian (giả lập tốc độ trung bình ~20km/h trong đô thị)
-  # Công suất: 20 km/h = 20 / 3600 km mỗi giây
+  # Quãng đường tính từ 0 (giả lập tốc độ đô thị ~20km/h)
   current_km = (elapsed_seconds / 3600.0) * 20.0
-  if current_km < 0.1:
-    current_km = 0.1  # Quản lý mức tối thiểu khi vừa xuất phát
-
   current_money = int(current_km * UNIT_PRICE)
 
-  # Hiển thị thông số trực tiếp
+  # Hiển thị trực tiếp các thông số bắt đầu từ 0
   st.markdown(
       f"<div class='metric-row'>SỐ KM: <span style='color:#0284c7;"
       f" float:right;'>{current_km:.2f} km</span></div>",
@@ -194,19 +195,18 @@ elif st.session_state.mock_state == "running":
   if st.button(
       "🛑 KẾT THÚC CHUYẾN ĐI", type="primary", use_container_width=True
   ):
-    # Lưu lại kết quả cuối cùng trước khi chuyển sang màn hình tổng kết
     st.session_state.final_km = current_km
     st.session_state.final_time = time_str
     st.session_state.final_money = current_money
     st.session_state.mock_state = "result"
     st.rerun()
 
-  # Tự động refresh lại trang mỗi 1 giây để đồng hồ và thông số đếm liên tục
+  # Cập nhật liên tục mỗi giây
   time.sleep(1)
   st.rerun()
 
 # -------------------------------------------------------------------------
-# 3. MÀN HÌNH KẾT QUẢ (CHỐT SỐ LIỆU CUỐI CÙNG)
+# 3. MÀN HÌNH KẾT QUẢ (CHỐT SỐ LIỆU MINH BẠCH)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "result":
   st.markdown(
@@ -249,6 +249,8 @@ elif st.session_state.mock_state == "result":
   if st.button("♻️ NHẬN CUỐC XE MỚI", type="primary", use_container_width=True):
     st.session_state.mock_state = "home"
     st.rerun()
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
