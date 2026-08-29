@@ -165,7 +165,7 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
     st.session_state["user_name"] = str(saved_phone)
 
 # ============================================================
-# XỬ LÝ SỰ KIỆN KẾT THÚC CHUYẾN TỪ URL GỬI VỀ
+# XỬ LÝ SỰ KIỆN KẾT THÚC CHUYẾN TỪ JAVASCRIPT GỬI VỀ
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
   try:
@@ -391,10 +391,9 @@ elif st.session_state.trip_active:
           <span id="price" style="font-size: 24px; font-weight: 900;">0 đ</span>
       </div>
       
-      <!-- SỬ DỤNG THẺ LINK (<a>) ĐỂ BẤT KỲ TRÌNH DUYỆT NÀO CŨNG ĐIỀU HƯỚNG VÀ LƯU DATA THÀNH CÔNG -->
-      <a id="btnStopLink" href="#" target="_top" onclick="prepareStop(event)" style="display: block; width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 17px; font-weight: 900; text-align: center; text-decoration: none; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); box-sizing: border-box;">
+      <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 17px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
           🛑 KẾT THÚC CHUYẾN ĐI
-      </a>
+      </button>
   </div>
 
   <script>
@@ -457,19 +456,20 @@ elif st.session_state.trip_active:
       );
   }}
 
-  function prepareStop(event) {{
+  function stopTripNow() {{
+      let btn = document.getElementById("btnStop");
+      btn.innerText = "⏳ ĐANG LƯU VÀO DATA...";
+      btn.style.background = "#64748b";
+      btn.disabled = true;
+
       let finalDist = localStorage.getItem("xeom_total_meters") || "0";
       localStorage.removeItem("xeom_total_meters");
       localStorage.removeItem("xeom_trip_active");
       localStorage.removeItem("xeom_start_time");
       
-      let baseUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-      let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start=" + startTime + "&cust={cust_param}";
-      
-      let link = document.getElementById("btnStopLink");
-      link.href = targetUrl;
-      link.innerText = "⏳ ĐANG LƯU VÀO DATA...";
-      link.style.background = "#64748b";
+      // Sử dụng window.location.href để reload trực tiếp trang hiện tại không bị chặn iframe
+      let targetUrl = window.location.href.split('?')[0] + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cust={cust_param}";
+      window.location.href = targetUrl;
   }}
   </script>
   """
