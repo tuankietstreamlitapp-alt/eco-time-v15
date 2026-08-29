@@ -15,9 +15,13 @@ st.set_page_config(
 )
 
 # ============================================================
-# CẤU HÌNH KẾT NỐI GOOGLE SHEETS
 # ============================================================
-SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
+# CẤU HÌNH KẾT NỐI GOOGLE SHEETS (ĐÃ AN TOÀN KHÔNG BỊ KEYERROR)
+# ============================================================
+try:
+    SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
+except Exception:
+    SHEET_KEY = "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY"
 
 @st.cache_resource
 def init_google_sheet_client():
@@ -26,7 +30,12 @@ def init_google_sheet_client():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
+    
+    # Kiểm tra xem secrets cấu hình theo dạng [connections.gsheets] hay dạng phẳng
+    if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+        creds_dict = dict(st.secrets["connections"]["gsheets"])
+    else:
+        creds_dict = dict(st.secrets)
     
     # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
     raw_key = creds_dict.get("private_key", "")
@@ -42,6 +51,7 @@ def init_google_sheet_client():
     client = gspread.authorize(creds)
     return client
   except Exception as e:
+    st.error(f"Lỗi kết nối Google Sheets: {e}")
     return None
 
 def get_worksheet_data(tab_name):
