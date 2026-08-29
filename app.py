@@ -150,15 +150,13 @@ st.markdown(
 # Thông báo trạng thái kết nối Sheets
 if is_connected is True:
   st.markdown(
-      f"<div style='text-align:center; font-size:14px; color:#64748b;"
-      f" margin-bottom:12px;'>Tài xế: <b>{DRIVER_NAME}</b> &nbsp;|&nbsp; <span"
+      "<div style='text-align:center; font-size:14px; color:#64748b;"
+      " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
       " style='color:#10b981;'>● Đã kết nối Google Sheets (Cache)</span></div>",
       unsafe_allow_html=True,
   )
 else:
-  st.warning(
-      "⚠️ Chưa kết nối được Google Sheets. Kiểm tra lại thông tin Secrets!"
-  )
+  st.error(f"⚠️ Lỗi kết nối Google Sheets chi tiết: {is_connected}")
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
