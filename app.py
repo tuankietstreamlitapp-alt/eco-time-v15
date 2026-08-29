@@ -295,6 +295,7 @@ elif st.session_state.mock_state == "running":
         .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
         .btn-end {{ background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
         .btn-pay {{ background: #059669; color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }}
+        .btn-back-run {{ background: #475569; color: white; box-shadow: 0 4px 10px rgba(71, 85, 105, 0.3); }}
         .btn-action:hover {{ opacity: 0.9; }}
         .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
         .customer-tag {{ font-size: 14px; color: #0284c7; background: #f0f9ff; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; border: 1px solid #bae6fd; }}
@@ -352,6 +353,7 @@ elif st.session_state.mock_state == "running":
             </div>
 
             <button class="btn-action btn-pay" onclick="confirmPayment()">✅ XÁC NHẬN THANH TOÁN</button>
+            <button class="btn-action btn-back-run" onclick="backToRunning()">🔄 TẠO CUỐC XE MỚI</button>
         </div>
     </div>
 
@@ -440,6 +442,55 @@ elif st.session_state.mock_state == "running":
             fetch(window.location.pathname + '?' + urlParams.toString()).catch(() => {{}});
         }}
 
+        function backToRunning() {{
+            document.getElementById('payment-view').style.display = 'none';
+            document.getElementById('running-view').style.display = 'block';
+
+            let urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete('action');
+            urlParams.delete('km');
+            urlParams.delete('time');
+            urlParams.delete('money');
+            window.history.replaceState({{}}, '', window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : ''));
+
+            if (!timerInterval) {{
+                timerInterval = setInterval(() => {{
+                    seconds++;
+                    let h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+                    let m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+                    let s = String(seconds % 60).padStart(2, '0');
+                    document.getElementById('time-val').innerText = h + ":" + m + ":" + s;
+                }}, 1000);
+            }}
+
+            if (navigator.geolocation && !watchId) {{
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {{
+                        let lat = position.coords.latitude;
+                        let lon = position.coords.longitude;
+                        let accuracy = position.coords.accuracy;
+
+                        if (prevLat !== null && prevLon !== null) {{
+                            let dist = getDistanceFromLatLonInKm(prevLat, prevLon, lat, lon);
+                            if (dist > 0.003 && accuracy < 50) {{
+                                totalDist += dist;
+                            }}
+                        }}
+                        prevLat = lat;
+                        prevLon = lon;
+
+                        let money = Math.round(totalDist * unitPrice);
+                        document.getElementById('km-val').innerText = totalDist.toFixed(2) + " km";
+                        document.getElementById('money-val').innerText = money.toLocaleString('vi-VN') + " đ";
+                    }},
+                    (error) => {{
+                        document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị!";
+                    }},
+                    {{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }}
+                );
+            }}
+        }}
+
         function confirmPayment() {{
             let urlParams = new URLSearchParams(window.location.search);
             urlParams.set('action', 'pay');
@@ -449,7 +500,7 @@ elif st.session_state.mock_state == "running":
     </body>
     </html>
     """
-  components.html(gps_component_code, height=450)
+  components.html(gps_component_code, height=520)
 
 # -------------------------------------------------------------------------
 # 3. MÀN HÌNH HOÀN TẤT & BẮT ĐẦU CUỐC MỚI
