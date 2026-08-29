@@ -98,7 +98,7 @@ st.markdown(
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
- st.markdown(
+ #st.markdown(
      """
     <div class='app-card'>
         <h3 style='color: #059669; text-align: center;'>Tiêu đề trong thẻ</h3>
