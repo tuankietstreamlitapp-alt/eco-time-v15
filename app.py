@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe ÔM — Pro Edition", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Pro Edition", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -293,9 +293,9 @@ def reset_trip():
 
 st.markdown("<div class='action-box'>", unsafe_allow_html=True)
 
-# ---> TRẠNG THÁI 1: CHỜ KHÁCH (Đã đặt Banner chữ chạy ngay trên dòng Nhập khách mới)
+# ---> TRẠNG THÁI 1: CHỜ KHÁCH
 if not st.session_state.trip_active and not st.session_state.trip_ended_at:
-    # BANNER CHỮ CHẠY ĐẶT Ở ĐÂY (NẰM TRONG KHUNG TRẮNG, TRÊN TIÊU ĐỀ NHẬP KHÁCH)
+    # Banner chữ chạy đặt gọn gàng trên cùng của khung
     st.markdown(
         """
         <div class="marquee-container">
