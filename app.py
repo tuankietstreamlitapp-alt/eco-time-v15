@@ -90,22 +90,42 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         return False
 
 # ============================================================
-# CSS GIAO DIỆN
+# CSS GIAO DIỆN CAO CẤP (PHONG CÁCH APP GỌI XE HIỆN ĐẠI)
 # ============================================================
 st.markdown(
     """
     <style>
-    .stApp { background-color: #f8fafc; }
-    .block-container { max-width: 720px; padding-top: 1.2rem; padding-bottom: 2.5rem; padding-left: 1rem; padding-right: 1rem; }
+    .stApp { background-color: #ffffff; }
+    .block-container { max-width: 480px; padding-top: 1.5rem; padding-bottom: 3rem; padding-left: 1.2rem; padding-right: 1.2rem; }
+    
+    /* Header kiểu app gọi xe */
+    .auth-hero { text-align: center; padding: 20px 0 10px 0; }
+    .auth-title { font-size: 26px; font-weight: 900; color: #00A86B; line-height: 1.3; margin-bottom: 8px; }
+    .auth-subtitle { font-size: 14px; color: #64748b; line-height: 1.5; padding: 0 10px; margin-bottom: 24px; }
+    
+    /* Vòng tròn trang trí minh họa mờ */
+    .hero-circle-box {
+        width: 180px; height: 180px; background: linear-gradient(135deg, rgba(0,168,107,0.08) 0%, rgba(0,128,77,0.02) 100%);
+        border-radius: 50%; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;
+        border: 2px dashed rgba(0,168,107,0.2); font-size: 54px; box-shadow: 0 10px 30px rgba(0,168,107,0.06);
+    }
+
+    /* Khung nhập số điện thoại tùy biến */
+    .phone-input-card {
+        background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; padding: 4px 16px;
+        display: flex; align-items: center; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    
+    /* Tùy chỉnh nút bấm chung */
+    div.stButton > button { border-radius: 14px !important; font-weight: 800 !important; min-height: 52px !important; background-color: #00A86B !important; color: white !important; border: none !important; box-shadow: 0 6px 16px rgba(0, 168, 107, 0.25); font-size: 15px !important; }
+    div.stButton > button:hover { background-color: #008f5a !important; }
+    
+    /* Dashboard & Thẻ thông tin khi đã đăng nhập */
     .app-header { background: linear-gradient(135deg, #00A86B 0%, #00804D 100%); padding: 20px 24px; border-radius: 20px; color: white; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(0, 168, 107, 0.24); }
-    .app-title { font-size: 22px; font-weight: 900; margin: 0; color: white; }
-    .app-subtitle { margin: 4px 0 0 0; color: #e2e8f0; font-size: 13px; font-weight: 500; }
     .status-badge { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(255, 255, 255, 0.2); color: #ffffff; margin-top: 8px; margin-right: 4px; }
     .section-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04); }
     .section-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; }
     .section-desc { font-size: 13px; color: #64748b; margin-bottom: 14px; line-height: 1.4; }
-    div.stButton > button { border-radius: 12px !important; font-weight: 800 !important; min-height: 50px !important; background-color: #00A86B !important; color: white !important; border: none !important; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2); }
-    div.stButton > button:hover { background-color: #008f5a !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -154,41 +174,57 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
             st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Thành viên"))
 
 # ============================================================
-# MÀN HÌNH ĐĂNG NHẬP
+# MÀN HÌNH ĐĂNG NHẬP (LỘT XÁC GIAO DIỆN MỚI)
 # ============================================================
 if not st.session_state["logged_in"]:
+    # Thanh chọn ngôn ngữ giả lập ở góc phải trên
+    col_top_l, col_top_r = st.columns([3, 2])
+    with col_top_r:
+        st.markdown(
+            """
+            <div style="text-align: right; font-size: 13px; font-weight: 600; color: #475569; padding-bottom: 10px;">
+                🇻🇳 Việt Nam | VI ▾
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     st.markdown(
         """
-        <div class="app-header">
-            <div class="app-title">🛵 4567 XE ÔM</div>
-            <div class="app-subtitle">Hệ thống quản lý trực tuyến qua Google Sheets</div>
-            <div class="status-badge">📞 Hotline/Zalo: 0978666620</div>
+        <div class="auth-hero">
+            <div class="hero-circle-box">🛵</div>
+            <div class="auth-title">4567 Xe Ôm — Mọi thứ trong tầm tay</div>
+            <div class="auth-subtitle">Đăng nhập bằng số điện thoại tài xế để bắt đầu hành trình xanh của bạn</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     
-    st.markdown(
-        """
-        <div class="section-card">
-            <div class="section-title">🔐 Đăng nhập hệ thống</div>
-            <div class="section-desc">Nhập số điện thoại tài xế được cấp phép trong danh sách trang tính để tiếp tục.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Khung nhập liệu tinh chỉnh gọn gàng
+    c_flag, c_input = st.columns([1.2, 3.8])
+    with c_flag:
+        st.markdown(
+            """
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; padding: 11px 12px; text-align: center; font-weight: 700; font-size: 14px; color: #334155; margin-bottom: 16px;">
+                🇻🇳 +84
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with c_input:
+        phone_input = st.text_input("SĐT", placeholder="Nhập số điện thoại", label_visibility="collapsed")
+
+    remember_me = st.checkbox("Ghi nhớ đăng nhập phiên làm việc", value=True)
     
-    phone_input = st.text_input("Số điện thoại tài xế / Khách hàng:", placeholder="Ví dụ: 0978666620 hoặc KHÁCH HÀNG")
-    remember_me = st.checkbox("Ghi nhớ đăng nhập (Không cần đăng nhập lại lần sau)", value=True)
-    
-    if st.button("XÁC NHẬN ĐĂNG NHẬP", use_container_width=True):
-        if phone_input.strip() == "":
+    st.write("")
+    if st.button("TIẾP TỤC", use_container_width=True):
+        if not phone_input or phone_input.strip() == "":
             st.warning("Ní ơi, vui lòng nhập số điện thoại hoặc tên tài khoản!")
         else:
-            with st.spinner("Đang kiểm tra dữ liệu từ Trang tính..."):
+            with st.spinner("Đang xác thực tài khoản..."):
                 _, login_records = get_worksheet_data("DANG_NHAP")
                 matched_user = None
-                if phone_input.upper() == "KHÁCH HÀNG":
+                if phone_input.strip().upper() == "KHÁCH HÀNG":
                     matched_user = {"SĐT": "KHÁCH HÀNG", "TÊN TÀI XẾ": "Khách hàng tự do"}
                 else:
                     for row in login_records:
@@ -205,11 +241,24 @@ if not st.session_state["logged_in"]:
                     else:
                         if "phone" in st.query_params:
                             del st.query_params["phone"]
-                    st.success(f"Xin chào **{st.session_state['user_name']}**! Đăng nhập thành công.")
-                    time.sleep(1)
+                    st.success(f"Xin chào **{st.session_state['user_name']}**! Đang chuyển hướng...")
+                    time.sleep(0.8)
                     st.rerun()
                 else:
                     st.error("❌ Số điện thoại không tồn tại trong danh sách phân quyền (`DANG_NHAP`)!")
+
+    # Phần phân cách phía dưới
+    st.markdown(
+        """
+        <div style="text-align: center; margin-top: 30px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+            <span style="font-size: 12px; color: #94a3b8; background: #ffffff; padding: 0 10px;">Hoặc hỗ trợ qua hệ thống</span>
+        </div>
+        <div style="text-align: center; margin-top: 15px; font-size: 13px; font-weight: 700; color: #00A86B;">
+            📞 Hotline / Zalo: 0978.666.620
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     st.stop()
 
 # ============================================================
@@ -278,7 +327,7 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     st.rerun()
 
 # ============================================================
-# GIAO DIỆN CHÍNH
+# GIAO DIỆN CHÍNH (SAU KHI ĐĂNG NHẬP)
 # ============================================================
 col_logo, col_text = st.columns([1, 4], vertical_alignment="center")
 with col_logo:
@@ -379,14 +428,9 @@ elif st.session_state.trip_active:
             <div style="color: #475569; font-size: 12px;"><span id="km">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
         </div>
         
-        <form id="stopForm" method="GET" action="" target="_top">
-            <input type="hidden" name="action" value="stop">
-            <input type="hidden" name="dist" id="inputDist" value="0">
-            <input type="hidden" name="start" value="{current_start_ts}">
-            <button type="submit" id="btnStop" onclick="prepareSubmit(event)" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
-                💳 KẾT THÚC CHUYẾN XE & ĐẨY QUA DATA
-            </button>
-        </form>
+        <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+            💳 KẾT THÚC CHUYẾN XE & ĐẨY QUA DATA
+        </button>
         <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 10px;">GPS: Đang theo dõi & Cache Active...</div>
     </div>
 
@@ -436,34 +480,26 @@ elif st.session_state.trip_active:
         );
     }}
 
-    function prepareSubmit(e) {{
+    function stopTripNow() {{
         let btn = document.getElementById("btnStop");
         btn.innerText = "⏳ ĐANG XỬ LÝ DỮ LIỆU...";
         btn.style.background = "#64748b";
+        btn.disabled = true;
 
         let finalDist = localStorage.getItem("xeom_total_meters") || "0";
         localStorage.removeItem("xeom_total_meters");
         localStorage.removeItem("xeom_trip_active");
         localStorage.removeItem("xeom_start_time");
         
-        document.getElementById("inputDist").value = finalDist;
-        
         let baseUrl = window.location.href.split('?')[0];
-        try {{ 
-            if (window.parent && window.parent.location) {{ 
-                baseUrl = window.parent.location.href.split('?')[0]; 
-            }} 
-        }} catch(err) {{
-            if (document.referrer) {{
-                baseUrl = document.referrer.split('?')[0];
-            }}
-        }}
+        try {{ if (window.parent && window.parent.location) {{ baseUrl = window.parent.location.href.split('?')[0]; }} }} catch(e) {{}}
         
-        document.getElementById("stopForm").action = baseUrl;
+        let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}";
+        try {{ window.top.location.href = targetUrl; }} catch(e) {{ window.location.href = targetUrl; }}
     }}
     </script>
     """
-    components.html(html_live_tracker, height=220)
+    components.html(html_live_tracker, height=200)
 
 # ============================================================
 # TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE
