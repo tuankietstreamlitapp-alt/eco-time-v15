@@ -51,12 +51,28 @@ def get_next_stt(tab_name):
         return 1
 
 def append_row_to_sheet(tab_name, row_values):
+    """Ghi 1 dòng vào Google Sheet và trả về (thành công, lỗi)."""
     try:
-        ws, _ = get_worksheet_data(tab_name)
-        ws.append_row(row_values)
-        return True
-    except:
-        return False
+        client = init_google_sheet_client()
+        sheet = client.open_by_key(SHEET_KEY)
+        ws = sheet.worksheet(tab_name)
+        ws.append_row(row_values, value_input_option="USER_ENTERED")
+        return True, ""
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def save_trip_to_data_sheet(row_values):
+    """Thử ghi DATA_4567 tối đa 3 lần để giảm lỗi mạng nhất thời."""
+    last_error = ""
+    for attempt in range(3):
+        ok, err = append_row_to_sheet("DATA_4567", row_values)
+        if ok:
+            return True, ""
+        last_error = err
+        if attempt < 2:
+            time.sleep(1)
+    return False, last_error
 
 def delete_row_from_sheet(tab_name, col_name, target_val):
     try:
@@ -230,11 +246,15 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         fare_val, st.session_state['user_name'], DONG_GIA, km_val, fare_val, "HOÀN THÀNH CUỐC XE"            
     ]
     
-    append_row_to_sheet("DATA_4567", row_data)
-    delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-    update_driver_status(st.session_state["user_phone"], "Trực tuyến")
-    
-    st.session_state["end_trip_effect"] = True
+    data_saved, data_error = save_trip_to_data_sheet(row_data)
+    if data_saved:
+        delete_row_from_sheet("CACHE_4567", "MÃ CUỘC XE", trip_id)
+        update_driver_status(st.session_state["user_phone"], "Trực tuyến")
+        st.session_state["data_save_error"] = ""
+        st.session_state["end_trip_effect"] = True
+    else:
+        st.session_state["data_save_error"] = data_error
+        st.session_state["end_trip_effect"] = False
     
     if "action" in st.query_params: del st.query_params["action"]
     if "dist" in st.query_params: del st.query_params["dist"]
@@ -248,6 +268,13 @@ if st.session_state.get("login_success_effect"):
     st.toast("Đăng nhập thành công!", icon="✅")
     st.balloons()
     st.session_state["login_success_effect"] = False
+
+if st.session_state.get("data_save_error"):
+    st.error(
+        "❌ CHƯA LƯU ĐƯỢC CUỘC XE VÀO DATA_4567. "
+        "Dữ liệu vẫn được giữ trong CACHE_4567 để tránh mất doanh thu.\n\n"
+        f"Chi tiết lỗi Google Sheets: {st.session_state['data_save_error']}"
+    )
 
 # ============================================================
 # 6. GIAO DIỆN CHÍNH & BANNER CHỮ CHẠY
@@ -298,7 +325,7 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
             get_next_stt("CACHE_4567"), st.session_state.trip_id, get_vn_time(st.session_state.trip_started_at), "---", "---",                              
             st.session_state.cust_name, st.session_state.cust_phone, 0, st.session_state['user_name'], DONG_GIA, 0, 0, "BẮT ĐẦU CUỐC"                      
         ]
-        append_row_to_sheet("CACHE_4567", cache_row)
+        append_row_to_sheet("CACHE_4567", cache_row)[0]
         update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
         st.rerun()
 
@@ -419,6 +446,21 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
 # 7. KHU VỰC HỖ TRỢ VÀ ĐĂNG XUẤT
 # ============================================================
 st.markdown("<div class='support-title'>HỖ TRỢ KHI CẦN THIẾT</div>", unsafe_allow_html=True)
+
+with st.expander("🔧 Kiểm tra kết nối Google Sheets", expanded=False):
+    if st.button("🧪 KIỂM TRA DATA_4567", use_container_width=True):
+        try:
+            client = init_google_sheet_client()
+            sheet = client.open_by_key(SHEET_KEY)
+            ws = sheet.worksheet("DATA_4567")
+            headers = ws.row_values(1)
+            st.success(
+                f"✅ Kết nối Google Sheets OK • DATA_4567 tồn tại • {len(headers)} cột."
+            )
+        except Exception as exc:
+            st.error(
+                f"❌ Kết nối DATA_4567 thất bại: {type(exc).__name__}: {exc}"
+            )
 c_sos, c_zalo = st.columns(2)
 with c_sos:
     st.markdown('<a href="tel:0978666620" class="btn-sos">🚨 SOS</a>', unsafe_allow_html=True)
@@ -439,8 +481,15 @@ if st.button("🔒 ĐĂNG XUẤT", use_container_width=True):
             st.session_state.get("cust_name"), st.session_state.get("cust_phone"), fare_val,
             st.session_state['user_name'], DONG_GIA, km_val, fare_val, "ÉP KẾT THÚC KHI ĐĂNG XUẤT"
         ]
-        append_row_to_sheet("DATA_4567", row_data)
-        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
+        logout_saved, logout_error = save_trip_to_data_sheet(row_data)
+        if logout_saved:
+            delete_row_from_sheet("CACHE_4567", "MÃ CUỘC XE", trip_id)
+        else:
+            st.error(
+                "❌ Không lưu được cuốc xe khi đăng xuất. "
+                f"Google Sheets: {logout_error}"
+            )
+            st.stop()
 
     update_driver_status(st.session_state["user_phone"], "Ngoại tuyến")
     
