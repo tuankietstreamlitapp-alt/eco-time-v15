@@ -1,6 +1,7 @@
 
 import math
 import time
+import datetime
 import urllib.parse
 import gspread
 import pandas as pd
@@ -17,10 +18,16 @@ st.set_page_config(
 # CẤU HÌNH MÚI GIỜ VIỆT NAM (UTC+7)
 # ============================================================
 def get_vn_time(timestamp=None):
-    vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+    vn_tz = pytz.timezone("Asia/Ho_Chi_Minh")
     if timestamp is None:
-        return datetime.datetime.now(vn_tz).strftime('%Y-%m-%d %H:%M:%S')
-    return datetime.datetime.fromtimestamp(timestamp, vn_tz).strftime('%Y-%m-%d %H:%M:%S')
+        return datetime.datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        timestamp = float(timestamp)
+        return datetime.datetime.fromtimestamp(
+            timestamp, vn_tz
+        ).strftime("%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return datetime.datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S")
 
 # ============================================================
 # CẤU HÌNH KẾT NỐI GOOGLE SHEETS
