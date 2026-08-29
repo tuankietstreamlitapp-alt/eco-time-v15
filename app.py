@@ -188,7 +188,6 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
   fare_val = round(km_val * UNIT_PRICE)
   trip_id = f"CX_{int(start_ts)}"
 
-  # Tự động tính STT dựa trên số dòng hiện tại của tab DATA
   _, data_records = get_worksheet_data("DATA")
   next_data_stt = len(data_records) + 1
 
@@ -331,7 +330,6 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     vn_now = datetime.utcnow() + timedelta(hours=7)
     start_time_str = vn_now.strftime('%Y-%m-%d %H:%M:%S')
     
-    # Tự động tính STT dựa trên số dòng hiện tại của tab CACHE
     _, cache_records = get_worksheet_data("CACHE")
     next_cache_stt = len(cache_records) + 1
 
@@ -474,7 +472,8 @@ elif st.session_state.trip_active:
   }}
   </script>
   """
-  components.html(html_live_tracker, height=350)
+  # Tăng height lên 500 để nút đỏ hiện đầy đủ, không bị cắt khuất
+  components.html(html_live_tracker, height=500)
 
 # TRẠNG THÁI: HOÀN THÀNH CUỐC XE
 elif not st.session_state.trip_active and st.session_state.trip_ended_at:
