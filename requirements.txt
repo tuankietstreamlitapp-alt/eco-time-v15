@@ -8,3 +8,7 @@ google-auth
 requests
 pytz
 oauth2client
+gspread
+google-auth
+pandas
+streamlit
