@@ -95,7 +95,6 @@ st.markdown("""
 [data-testid="stToolbar"], [data-testid="stStatusWidget"] { display:none !important; }
 .stApp { background:#f3faf6; }
 .block-container { max-width:600px; padding:.25rem .75rem 1.2rem !important; }
-.action-box { background:#fff; border:1px solid #d8ebe1; border-radius:15px; padding:13px 14px 15px; box-shadow:0 3px 12px rgba(10,80,50,.05); margin-bottom:8px; }
 .marquee-container { background:#087f4f; color:#fff; padding:7px 10px; border-radius:9px; font-weight:700; font-size:13px; margin:0 0 11px; overflow:hidden; }
 div[data-testid="stTextInput"] label, div[data-testid="stCheckbox"] label { font-size:16px !important; font-weight:700 !important; }
 div[data-testid="stTextInput"] input { min-height:46px !important; border-radius:10px !important; font-size:17px !important; }
@@ -149,9 +148,10 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
 # ============================================================
 # 4. MÀN HÌNH ĐĂNG NHẬP
 # ============================================================
+# Không dùng div mở/đóng bằng 2 lệnh st.markdown riêng biệt:
+# Streamlit sẽ render chúng thành một thanh rỗng độc lập.
 if not st.session_state["logged_in"]:
     st.markdown("<h1 style='text-align:center; color:#00A86B; font-size:40px;'>🛵 4567 XE ÔM</h1>", unsafe_allow_html=True)
-    st.markdown("<div class='action-box'>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center;'>🔐 ĐĂNG NHẬP</h3>", unsafe_allow_html=True)
     
     phone_input = st.text_input("SỐ ĐIỆN THOẠI TÀI XẾ:", placeholder="Nhập SĐT vào đây...")
@@ -194,7 +194,6 @@ if not st.session_state["logged_in"]:
                         st.rerun()
                 else:
                     st.error("❌ Số điện thoại không đúng!")
-    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # ============================================================
@@ -267,7 +266,6 @@ def reset_trip():
     st.session_state.cust_name = ""
     st.session_state.cust_phone = ""
 
-st.markdown("<div class='action-box'>", unsafe_allow_html=True)
 
 # ---> TRẠNG THÁI 1: CHỜ KHÁCH
 if not st.session_state.trip_active and not st.session_state.trip_ended_at:
@@ -411,13 +409,11 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
         </div>
         """, unsafe_allow_html=True
     )
-    st.markdown("</div>", unsafe_allow_html=True)
     
     if st.button("♻️ VỀ TRANG CHỦ / NHẬN CUỐC", type="primary", use_container_width=True):
         reset_trip()
         st.rerun()
 
-st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # 7. KHU VỰC HỖ TRỢ VÀ ĐĂNG XUẤT
