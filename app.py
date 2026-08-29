@@ -1,19 +1,17 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import streamlit as st
 import streamlit.components.v1 as components
+
+# --- CẤU HÌNH GIỜ VIỆT NAM ---
+VN_TZ = timezone(timedelta(hours=7))
 
 st.set_page_config(
     page_title="4567 Xe Ôm - Google Sheets Cache",
     page_icon="🛵",
     layout="centered",
 )
-
-# Hàm lấy giờ Việt Nam chuẩn (GMT+7)
-def get_vn_time():
-  return datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
 
 # ============================================================
 # CẤU HÌNH KẾT NỐI GOOGLE SHEETS
@@ -33,9 +31,11 @@ def init_google_sheets():
     # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
     raw_key = creds_dict.get("private_key", "")
     if "-----BEGIN PRIVATE KEY-----" in raw_key:
+        # Lấy phần lõi của key, xóa sạch mọi khoảng trắng, \n, \r bị dư
         key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
         key_body = key_body.replace(" ", "").replace("\\n", "").replace("\n", "").replace("\r", "")
         
+        # Chia lại thành từng dòng 64 ký tự chuẩn xác 100%
         chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
         clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
         creds_dict["private_key"] = clean_key
@@ -117,28 +117,6 @@ st.markdown(
         box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2);
     }
     .btn-zalo-single:hover { opacity: 0.9; color: white !important; }
-    
-    .metric-row { 
-        font-size: 18px; 
-        font-weight: bold; 
-        color: #334155; 
-        padding: 12px 0; 
-        border-bottom: 2px dashed #f1f5f9; 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: center; 
-    }
-    .customer-tag { 
-        font-size: 14px; 
-        color: #0284c7; 
-        background: #f0f9ff; 
-        padding: 6px 12px; 
-        border-radius: 8px; 
-        margin-bottom: 12px; 
-        text-align: center; 
-        font-weight: bold; 
-        border: 1px solid #bae6fd; 
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -155,17 +133,11 @@ if "ma_cuoc_xe" not in st.session_state:
   st.session_state.ma_cuoc_xe = ""
 if "start_time_str" not in st.session_state:
   st.session_state.start_time_str = ""
-if "final_km" not in st.session_state:
-  st.session_state.final_km = "0"
-if "final_time" not in st.session_state:
-  st.session_state.final_time = "00:00:00"
-if "final_money" not in st.session_state:
-  st.session_state.final_money = "0"
 
 UNIT_PRICE = 5000  # 5,000 đ/km
 DRIVER_NAME = "Nguyễn Văn A"
 
-# Khôi phục trạng thái từ CACHE nếu tài xế tải lại trang
+# Kiểm tra CACHE tồn đọng để phục hồi
 if (
     st.session_state.mock_state == "home"
     and is_connected is True
@@ -174,20 +146,13 @@ if (
   try:
     cache_rows = sheet_cache.get_all_values()
     if len(cache_rows) > 1:
-      last_row = cache_rows[1]
+      last_row = cache_rows[1] 
       if len(last_row) >= 13:
         st.session_state.ma_cuoc_xe = last_row[1]
         st.session_state.start_time_str = last_row[2]
         st.session_state.customer_name = last_row[5]
         st.session_state.customer_phone = last_row[6]
-        status = last_row[12]
-        if status == "Đang chạy":
-          st.session_state.mock_state = "running"
-        elif status == "Chờ thanh toán":
-          st.session_state.mock_state = "payment"
-          st.session_state.final_km = last_row[10]
-          st.session_state.final_time = last_row[4]
-          st.session_state.final_money = last_row[11]
+        st.session_state.mock_state = "running"
   except Exception:
     pass
 
@@ -198,12 +163,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Thông báo trạng thái kết nối Sheets
 if is_connected is True:
   st.markdown(
       "<div style='text-align:center; font-size:14px; color:#64748b;"
       " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
-      " style='color:#10b981;'>● Đã kết nối Google Sheets (Cache)</span></div>",
+      " style='color:#10b981;'>● Đã kết nối Google Sheets</span></div>",
       unsafe_allow_html=True,
   )
 else:
@@ -221,33 +185,19 @@ if st.session_state.mock_state == "home":
       unsafe_allow_html=True,
   )
 
-  c_name = st.text_input(
-      "TÊN KHÁCH HÀNG:",
-      placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)",
-      key="input_name",
-  )
-  c_phone = st.text_input(
-      "SỐ ĐIỆN THOẠI:",
-      placeholder="Ví dụ: 0909xxxxxx",
-      key="input_phone",
-  )
+  c_name = st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)", key="input_name")
+  c_phone = st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Ví dụ: 0909xxxxxx", key="input_phone")
 
   st.write("")
   if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
-    st.session_state.customer_name = (
-        c_name.strip() if c_name.strip() else "Khách vãng lai"
-    )
-    st.session_state.customer_phone = (
-        c_phone.strip() if c_phone.strip() else "Không có"
-    )
+    st.session_state.customer_name = c_name.strip() if c_name.strip() else "Khách vãng lai"
+    st.session_state.customer_phone = c_phone.strip() if c_phone.strip() else "Không có"
 
-    # Sinh mã cuộc xe dựa trên giờ Việt Nam
-    now_str = get_vn_time()
-    dt_obj = datetime.strptime(now_str, "%Y-%m-%d %H:%M:%S")
-    st.session_state.ma_cuoc_xe = f"CX_{dt_obj.strftime('%Y%m%d_%H%M%S')}"
-    st.session_state.start_time_str = now_str
+    # Lấy giờ VN
+    now = datetime.now(VN_TZ)
+    st.session_state.ma_cuoc_xe = f"CX_{now.strftime('%Y%m%d_%H%M%S')}"
+    st.session_state.start_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Đẩy ngay dữ liệu khởi tạo vào sheet CACHE
     if is_connected is True and sheet_cache:
       try:
         new_row = [
@@ -274,7 +224,7 @@ if st.session_state.mock_state == "home":
   st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY (GPS & KẾT THÚC)
+# 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
   query_params = st.query_params
@@ -284,38 +234,40 @@ elif st.session_state.mock_state == "running":
     final_km = query_params.get("km", "0")
     final_time = query_params.get("time", "00:00:00")
     final_money = query_params.get("money", "0")
-    
-    st.session_state.final_km = final_km
-    st.session_state.final_time = final_time
-    st.session_state.final_money = final_money
 
-    end_time_str = get_vn_time()
-
-    # Cập nhật Cache và đồng thời lưu vào sheet DATA ngay khi KẾT THÚC
     if is_connected is True and sheet_cache:
       try:
         cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
         if cell:
           row_idx = cell.row
+          end_time_str = datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
           sheet_cache.update_cell(row_idx, 4, end_time_str)
           sheet_cache.update_cell(row_idx, 5, final_time)
           sheet_cache.update_cell(row_idx, 11, final_km)
           sheet_cache.update_cell(row_idx, 12, final_money)
           sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán")
-          
-          # Đẩy dữ liệu chuyến đi hoàn chỉnh vào sheet DATA
-          updated_row = sheet_cache.row_values(row_idx)
-          if sheet_data:
-            try:
-              existing_cell = sheet_data.find(st.session_state.ma_cuoc_xe)
-              if not existing_cell:
-                sheet_data.append_row(updated_row)
-            except Exception:
-              sheet_data.append_row(updated_row)
       except Exception:
         pass
 
-    st.session_state.mock_state = "payment"
+  elif action_trigger == "pay":
+    if is_connected is True and sheet_cache and sheet_data:
+      try:
+        cache_rows = sheet_cache.get_all_values()
+        if len(cache_rows) > 1:
+          row_to_move = cache_rows[1]
+          row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
+          sheet_data.append_row(row_to_move)
+          sheet_cache.clear()
+          sheet_cache.append_row([
+              "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
+              "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", 
+              "SỐ TIỀN THU", "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI"
+          ])
+      except Exception:
+        pass
+
+    # Chuyển sang màn hình xác nhận đã thanh toán xong
+    st.session_state.mock_state = "paid"
     st.query_params.clear()
     st.rerun()
 
@@ -330,6 +282,7 @@ elif st.session_state.mock_state == "running":
         .metric-row {{ font-size: 18px; font-weight: bold; color: #334155; padding: 12px 0; border-bottom: 2px dashed #f1f5f9; display: flex; justify-content: space-between; align-items: center; }}
         .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
         .btn-end {{ background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
+        .btn-pay {{ background: #059669; color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }}
         .btn-action:hover {{ opacity: 0.9; }}
         .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
         .customer-tag {{ font-size: 14px; color: #0284c7; background: #f0f9ff; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; border: 1px solid #bae6fd; }}
@@ -337,28 +290,57 @@ elif st.session_state.mock_state == "running":
     </head>
     <body>
     <div class="app-card">
-        <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">⏱️ ĐANG TRONG CUỐC XE...</div>
-        <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
-        <div id="status" class="gps-status">🛰️ Đang kết nối tín hiệu vệ tinh...</div>
-        
-        <div class="metric-row">
-            <span>SỐ KM:</span>
-            <span id="km-val" style="color:#0284c7;">0.00 km</span>
-        </div>
-        <div class="metric-row">
-            <span>THỜI GIAN ĐI:</span>
-            <span id="time-val" style="color:#059669;">00:00:00</span>
-        </div>
-        <div class="metric-row">
-            <span>ĐƠN GIÁ:</span>
-            <span>{UNIT_PRICE:,} đ/km</span>
-        </div>
-        <div class="metric-row" style="font-size:21px; color:#dc2626; border-bottom: none;">
-            <span>THÀNH TIỀN:</span>
-            <span id="money-val" style="font-weight:900;">0 đ</span>
+        <!-- GIAO DIỆN ĐANG CHẠY -->
+        <div id="running-view">
+            <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">⏱️ ĐANG TRONG CUỐC XE...</div>
+            <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
+            <div id="status" class="gps-status">🛰️ Đang kết nối tín hiệu vệ tinh...</div>
+            
+            <div class="metric-row">
+                <span>SỐ KM:</span>
+                <span id="km-val" style="color:#0284c7;">0.00 km</span>
+            </div>
+            <div class="metric-row">
+                <span>THỜI GIAN ĐI:</span>
+                <span id="time-val" style="color:#059669;">00:00:00</span>
+            </div>
+            <div class="metric-row">
+                <span>ĐƠN GIÁ:</span>
+                <span>{UNIT_PRICE:,} đ/km</span>
+            </div>
+            <div class="metric-row" style="font-size:21px; color:#dc2626; border-bottom: none;">
+                <span>THÀNH TIỀN:</span>
+                <span id="money-val" style="font-weight:900;">0 đ</span>
+            </div>
+
+            <button class="btn-action btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
         </div>
 
-        <button class="btn-action btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
+        <!-- GIAO DIỆN XÁC NHẬN CHỜ THANH TOÁN -->
+        <div id="payment-view" style="display: none;">
+            <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">💳 XÁC NHẬN THANH TOÁN</div>
+            <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
+            <div style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 12px; font-weight: bold; background: #f1f5f9; padding: 8px; border-radius: 8px;">📋 Thông tin đã chốt. Mời khách thanh toán!</div>
+            
+            <div class="metric-row">
+                <span>SỐ KM:</span>
+                <span id="final-km-val" style="color:#0284c7;">0.00 km</span>
+            </div>
+            <div class="metric-row">
+                <span>THỜI GIAN ĐI:</span>
+                <span id="final-time-val" style="color:#059669;">00:00:00</span>
+            </div>
+            <div class="metric-row">
+                <span>ĐƠN GIÁ:</span>
+                <span>{UNIT_PRICE:,} đ/km</span>
+            </div>
+            <div class="metric-row" style="font-size:21px; color:#059669; border-bottom: none;">
+                <span>THÀNH TIỀN:</span>
+                <span id="final-money-val" style="font-weight:900;">0 đ</span>
+            </div>
+
+            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ ĐÃ THANH TOÁN</button>
+        </div>
     </div>
 
     <script>
@@ -430,12 +412,25 @@ elif st.session_state.mock_state == "running":
             let finalTimeStr = document.getElementById('time-val').innerText;
             let finalMoneyNum = Math.round(totalDist * unitPrice);
 
+            document.getElementById('final-km-val').innerText = finalKmStr + " km";
+            document.getElementById('final-time-val').innerText = finalTimeStr;
+            document.getElementById('final-money-val').innerText = finalMoneyNum.toLocaleString('vi-VN') + " đ";
+
+            document.getElementById('running-view').style.display = 'none';
+            document.getElementById('payment-view').style.display = 'block';
+
             let urlParams = new URLSearchParams(window.location.search);
             urlParams.set('action', 'end');
             urlParams.set('km', finalKmStr);
             urlParams.set('time', finalTimeStr);
             urlParams.set('money', finalMoneyNum);
             
+            fetch(window.location.pathname + '?' + urlParams.toString()).catch(() => {{}});
+        }}
+
+        function confirmPayment() {{
+            let urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('action', 'pay');
             window.location.search = urlParams.toString();
         }}
     </script>
@@ -445,130 +440,37 @@ elif st.session_state.mock_state == "running":
   components.html(gps_component_code, height=450)
 
 # -------------------------------------------------------------------------
-# 3. MÀN HÌNH THANH TOÁN (ĐÃ TÁCH BIỆT NÚT)
+# 3. MÀN HÌNH HOÀN TẤT & BẮT ĐẦU CUỐC MỚI
 # -------------------------------------------------------------------------
-elif st.session_state.mock_state == "payment":
+elif st.session_state.mock_state == "paid":
   st.markdown("<div class='app-card'>", unsafe_allow_html=True)
-  st.markdown(
-      "<div style='font-size:18px; font-weight:900; color:#059669;"
-      " margin-bottom:6px; text-align:center;'>💳 XÁC NHẬN THANH TOÁN</div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='customer-tag'>Khách: {st.session_state.customer_name}"
-      f" ({st.session_state.customer_phone})</div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      "<div style='font-size: 13px; color: #64748b; text-align: center;"
-      " margin-bottom: 12px; font-weight: bold; background: #f1f5f9; padding:"
-      " 8px; border-radius: 8px;'>📋 Thông tin đã chốt & lưu Data. Mời khách"
-      " thanh toán!</div>",
-      unsafe_allow_html=True,
-  )
-
-  st.markdown(
-      f"<div class='metric-row'><span>SỐ KM:</span><span"
-      f" style='color:#0284c7;'>{st.session_state.final_km} km</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row'><span>THỜI GIAN"
-      f" ĐI:</span><span"
-      f" style='color:#059669;'>{st.session_state.final_time}</span></div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='metric-row'><span>ĐƠN GIÁ:</span><span>{UNIT_PRICE:,}"
-      " đ/km</span></div>",
-      unsafe_allow_html=True,
-  )
   
-  try:
-    display_money = int(float(st.session_state.final_money))
-  except Exception:
-    display_money = 0
-
   st.markdown(
-      "<div class='metric-row' style='font-size:21px; color:#059669;"
-      " border-bottom: none;'><span>THÀNH TIỀN:</span><span"
-      f" style='font-weight:900;'>{display_money:,} đ</span></div>",
-      unsafe_allow_html=True,
+      "<div style='text-align:center; padding: 20px 0;'>"
+      "<div style='font-size: 50px; margin-bottom: 10px;'>🎉</div>"
+      "<h2 style='color:#059669; margin:0;'>HOÀN TẤT CUỐC XE</h2>"
+      "<p style='color:#64748b; font-size:14px; margin-top:5px;'>"
+      "Dữ liệu đã được lưu an toàn vào Google Sheets (DATA)</p>"
+      "</div>", 
+      unsafe_allow_html=True
   )
 
+  st.markdown(f"**Khách hàng:** {st.session_state.customer_name}")
+  st.markdown(f"**Mã cuốc:** `{st.session_state.ma_cuoc_xe}`")
   st.write("")
-  if st.button("✅ XÁC NHẬN ĐÃ THANH TOÁN", type="primary", use_container_width=True):
-    if is_connected is True and sheet_cache:
-      try:
-        cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
-        if cell:
-          sheet_cache.update_cell(cell.row, 13, "Đã thanh toán")
-      except Exception:
-        pass
-    st.session_state.mock_state = "finished"
-    st.rerun()
 
-  st.markdown("</div>", unsafe_allow_html=True)
-
-# -------------------------------------------------------------------------
-# 4. MÀN HÌNH HOÀN TẤT (CHỜ TẠO CUỐC MỚI)
-# -------------------------------------------------------------------------
-elif st.session_state.mock_state == "finished":
-  st.markdown("<div class='app-card'>", unsafe_allow_html=True)
-  st.markdown(
-      "<div style='font-size:18px; font-weight:900; color:#059669;"
-      " margin-bottom:12px; text-align:center;'>🎉 HOÀN TẤT CUỐC XE</div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      f"<div class='customer-tag'>Khách cũ: {st.session_state.customer_name}"
-      f" ({st.session_state.customer_phone})</div>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      "<div style='font-size: 14px; color: #10b981; text-align: center;"
-      " margin-bottom: 15px; font-weight: bold; background: #ecfdf5; padding:"
-      " 10px; border-radius: 8px; border: 1px solid #a7f3d0;'>✅ Thanh toán thành"
-      " công và ghi nhận hệ thống!</div>",
-      unsafe_allow_html=True,
-  )
-
-  st.write("")
-  if st.button("🔄 TẠO CUỐC XE MỚI", type="primary", use_container_width=True):
-    # Xóa sạch CACHE trên Google Sheets và thiết lập dòng tiêu đề mới
-    if is_connected is True and sheet_cache:
-      try:
-        sheet_cache.clear()
-        sheet_cache.append_row([
-            "STT",
-            "MÃ CUỐC XE",
-            "THỜI GIAN BẮT ĐẦU",
-            "THỜI GIAN KẾT THÚC",
-            "TỔNG THỜI GIAN",
-            "TÊN KHÁCH HÀNG",
-            "SĐT KHÁCH HÀNG",
-            "SỐ TIỀN THU",
-            "TÊN TÀI XẾ",
-            "ĐƠN GIÁ",
-            "SỐ KM",
-            "TOTAL TIỀN",
-            "TRẠNG THÁI",
-        ])
-      except Exception:
-        pass
-
-    # Reset lại session state về màn hình nhập thông tin cuốc mới
+  if st.button("🚀 BẮT ĐẦU CUỐC MỚI", type="primary", use_container_width=True):
+    # Reset toàn bộ biến để đón khách mới
     st.session_state.mock_state = "home"
     st.session_state.customer_name = ""
     st.session_state.customer_phone = ""
     st.session_state.ma_cuoc_xe = ""
-    st.session_state.start_time_str = ""
     st.rerun()
-
+    
   st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# NÚT ZALO & CÂU CHÚC Ở ĐÁY
+# NÚT ZALO & CÂU CHÚC TẬN CÙNG DƯỚI ĐÁY
 # ============================================================
 st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
 st.markdown(
