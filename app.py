@@ -65,7 +65,6 @@ def append_row_to_sheet(tab_name, row_values):
         print(f"Lỗi ghi sheet {tab_name}: {e}") # Báo lỗi ra console nếu có
         return False
 
-# BƯỚC VÁ LỖI QUAN TRỌNG: Hàm xóa dòng trong Sheet Cache
 def delete_row_from_sheet(tab_name, col_name, value):
     try:
         ws, records = get_worksheet_data(tab_name)
