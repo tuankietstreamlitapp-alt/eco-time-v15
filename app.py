@@ -86,57 +86,30 @@ def update_driver_status(phone, status):
         pass
 
 # ============================================================
-# 2. CSS GIAO DIỆN (CHỮ TO, RÕ RÀNG CHO BÁC TÀI)
+# 2. CSS GIAO DIỆN — XANH / SẠCH / ĐẸP / DỄ THAO TÁC
 # ============================================================
-st.markdown(
-    """
-    <style>
-    .stApp { background-color: #f8fafc; }
-    .block-container { max-width: 600px; padding: 1rem 1rem 3rem 1rem; }
-    
-    /* Nút bấm siêu to khổng lồ */
-    div.stButton > button { 
-        border-radius: 12px !important; 
-        font-weight: 900 !important; 
-        font-size: 22px !important; 
-        min-height: 65px !important; 
-    }
-    
-    /* Box chức năng tập trung */
-    .action-box { 
-        background: #ffffff; border-radius: 16px; padding: 25px; 
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); 
-        margin-bottom: 20px; border: 2px solid #e2e8f0; 
-    }
-    
-    /* Banner chữ chạy phong cách hiện đại */
-    .marquee-container {
-        background: linear-gradient(135deg, #00A86B, #0284c7);
-        color: white;
-        padding: 10px 15px;
-        border-radius: 10px;
-        font-weight: bold;
-        font-size: 15px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    }
-    
-    .btn-sos { background: #ef4444; color: white; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; font-size: 18px; text-decoration: none; display: block; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);}
-    .btn-zalo { background: #0068ff; color: white; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; font-size: 18px; text-decoration: none; display: block; box-shadow: 0 4px 10px rgba(0, 104, 255, 0.3);}
-    .btn-sos:hover, .btn-zalo:hover { color: white; opacity: 0.9;}
-    
-    .receipt-box { border: 2px dashed #94a3b8; border-radius: 12px; padding: 20px; text-align: center; background: #fff; margin-bottom: 15px;}
-    
-    @media print {
-        body * { visibility: hidden; }
-        .receipt-print-area, .receipt-print-area * { visibility: visible; }
-        .receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; }
-        .stButton, .btn-sos, .btn-zalo { display: none !important; }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+#MainMenu, footer, header { visibility:hidden !important; }
+[data-testid="stHeader"], [data-testid="stDecoration"],
+[data-testid="stToolbar"], [data-testid="stStatusWidget"] { display:none !important; }
+.stApp { background:#f3faf6; }
+.block-container { max-width:600px; padding:.25rem .75rem 1.2rem !important; }
+.action-box { background:#fff; border:1px solid #d8ebe1; border-radius:15px; padding:13px 14px 15px; box-shadow:0 3px 12px rgba(10,80,50,.05); margin-bottom:8px; }
+.marquee-container { background:#087f4f; color:#fff; padding:7px 10px; border-radius:9px; font-weight:700; font-size:13px; margin:0 0 11px; overflow:hidden; }
+div[data-testid="stTextInput"] label, div[data-testid="stCheckbox"] label { font-size:16px !important; font-weight:700 !important; }
+div[data-testid="stTextInput"] input { min-height:46px !important; border-radius:10px !important; font-size:17px !important; }
+div.stButton > button { border-radius:11px !important; font-weight:900 !important; font-size:19px !important; min-height:58px !important; box-shadow:none !important; }
+.fare-panel { background:#effaf4; border:2px solid #b9e6cd; border-radius:15px; padding:13px 10px 14px; margin-bottom:12px; }
+.receipt-box { border:1px solid #cfe4d8; border-radius:14px; padding:17px; text-align:center; background:#fff; margin-bottom:12px; box-shadow:0 3px 12px rgba(10,80,50,.05); }
+.support-title { color:#5b7167; text-align:center; font-size:13px; font-weight:800; margin:5px 0 7px; }
+.btn-sos,.btn-zalo { color:#fff; padding:11px; border-radius:10px; text-align:center; font-weight:900; font-size:16px; text-decoration:none; display:block; }
+.btn-sos { background:#dc2626; } .btn-zalo { background:#0068ff; }
+.btn-sos:hover,.btn-zalo:hover { color:#fff; opacity:.92; }
+@media(max-width:600px){.block-container{padding-left:.55rem !important;padding-right:.55rem !important;}}
+@media print{body *{visibility:hidden}.receipt-print-area,.receipt-print-area *{visibility:visible}.receipt-print-area{position:absolute;left:0;top:0;width:100%}.stButton,.btn-sos,.btn-zalo{display:none !important}}
+</style>
+""", unsafe_allow_html=True)
 
 # ============================================================
 # 3. QUẢN LÝ TRẠNG THÁI
@@ -280,8 +253,11 @@ if st.session_state.get("login_success_effect"):
 # ============================================================
 # 6. GIAO DIỆN CHÍNH & BANNER CHỮ CHẠY
 # ============================================================
-st.markdown(f"<h2 style='text-align:center; color:#00A86B; margin-bottom:0;'>🛵 4567 XE ÔM</h2>", unsafe_allow_html=True)
-st.markdown(f"<div style='text-align:center; font-size:18px; margin-bottom:15px;'>Tài xế: <b>{st.session_state['user_name']}</b> | <span style='color:green;'>🟢 Sẵn sàng</span></div>", unsafe_allow_html=True)
+st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #d8ebe1;border-radius:13px;padding:9px 12px;margin-bottom:8px;box-shadow:0 3px 10px rgba(10,80,50,.05);">
+<div style="font-size:20px;font-weight:900;color:#087f4f;">🛵 4567 XE ÔM</div>
+<div style="text-align:right;font-size:13px;line-height:1.25;"><b>{st.session_state['user_name']}</b><br><span style="color:#087f4f;font-weight:900;">● SẴN SÀNG</span></div>
+</div>""", unsafe_allow_html=True)
 
 def reset_trip():
     st.session_state.trip_active = False
@@ -307,7 +283,7 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         unsafe_allow_html=True
     )
     
-    st.markdown("<h4 style='text-align:center;'>📍 NHẬP KHÁCH MỚI</h4>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center;color:#087f4f;font-size:18px;font-weight:900;margin:1px 0 9px;'>📍 NHẬP KHÁCH MỚI</div>", unsafe_allow_html=True)
     cust_name_in = st.text_input("TÊN KHÁCH HÀNG:", placeholder="Bỏ trống nếu là khách vãng lai")
     cust_phone_in = st.text_input("SĐT KHÁCH HÀNG:", placeholder="Nhập số điện thoại...")
 
@@ -334,9 +310,9 @@ elif st.session_state.trip_active:
     
     html_live_tracker = f"""
     <div style="text-align: center;">
-        <div style="color: #475569; font-size: 16px; font-weight: bold;">CƯỚC PHÍ TẠM TÍNH</div>
+        <div class="fare-panel"><div style="color:#087f4f;font-size:17px;font-weight:900;">CƯỚC PHÍ TẠM TÍNH</div>
         <div id="price" style="color: #10b981; font-size: 55px; font-weight: 900; margin: 10px 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">0 đ</div>
-        <div style="color: #64748b; font-size: 18px; margin-bottom:20px;"><span id="km" style="font-weight:bold; color:#0f172a;">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
+        <div style="color:#52655d;font-size:17px;margin-bottom:6px;"><span id="km" style="font-weight:900;color:#0f172a;">0.00</span> km • {DONG_GIA:,.0f} đ/km</div></div>
         
         <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #ef4444; color: white; border: none; border-radius: 12px; padding: 20px; font-size: 22px; font-weight: 900; cursor: pointer; box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);">
             🛑 KẾT THÚC CHUYẾN ĐI
@@ -410,8 +386,7 @@ elif st.session_state.trip_active:
 # ---> TRẠNG THÁI 3: KẾT THÚC
 elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     if st.session_state.get("end_trip_effect"):
-        st.toast("🎉 Hoàn thành chuyến xe xuất sắc!", icon="🏆")
-        st.balloons()
+        st.toast("Đã chốt chuyến và lưu doanh thu.", icon="✅")
         st.session_state["end_trip_effect"] = False
 
     km = st.session_state.trip_total_m / 1000.0
@@ -447,12 +422,12 @@ st.markdown("</div>", unsafe_allow_html=True)
 # ============================================================
 # 7. KHU VỰC HỖ TRỢ VÀ ĐĂNG XUẤT
 # ============================================================
-st.write("---")
+st.markdown("<div class='support-title'>HỖ TRỢ KHI CẦN THIẾT</div>", unsafe_allow_html=True)
 c_sos, c_zalo = st.columns(2)
 with c_sos:
-    st.markdown('<a href="tel:0978666620" class="btn-sos">🚨 GỌI SOS</a>', unsafe_allow_html=True)
+    st.markdown('<a href="tel:0978666620" class="btn-sos">🚨 SOS</a>', unsafe_allow_html=True)
 with c_zalo:
-    st.markdown('<a href="https://zalo.me/0978666620" class="btn-zalo" target="_blank">💬 ZALO ADMIN</a>', unsafe_allow_html=True)
+    st.markdown('<a href="https://zalo.me/0978666620" class="btn-zalo" target="_blank">💬 ZALO</a>', unsafe_allow_html=True)
 
 st.write("")
 if st.button("🔒 ĐĂNG XUẤT", use_container_width=True):
