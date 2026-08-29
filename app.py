@@ -1,4 +1,4 @@
-
+import datetime
 import math
 import time
 import urllib.parse
@@ -379,9 +379,14 @@ elif st.session_state.trip_active:
             <div style="color: #475569; font-size: 12px;"><span id="km">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
         </div>
         
-        <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
-            💳 KẾT THÚC CHUYẾN XE & ĐẨY QUA DATA
-        </button>
+        <form id="stopForm" method="GET" action="" target="_top">
+            <input type="hidden" name="action" value="stop">
+            <input type="hidden" name="dist" id="inputDist" value="0">
+            <input type="hidden" name="start" value="{current_start_ts}">
+            <button type="submit" id="btnStop" onclick="prepareSubmit(event)" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+                💳 KẾT THÚC CHUYẾN XE & ĐẨY QUA DATA
+            </button>
+        </form>
         <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 10px;">GPS: Đang theo dõi & Cache Active...</div>
     </div>
 
@@ -431,29 +436,37 @@ elif st.session_state.trip_active:
         );
     }}
 
-    function stopTripNow() {{
+    function prepareSubmit(e) {{
         let btn = document.getElementById("btnStop");
         btn.innerText = "⏳ ĐANG XỬ LÝ DỮ LIỆU...";
         btn.style.background = "#64748b";
-        btn.disabled = true;
 
         let finalDist = localStorage.getItem("xeom_total_meters") || "0";
         localStorage.removeItem("xeom_total_meters");
         localStorage.removeItem("xeom_trip_active");
         localStorage.removeItem("xeom_start_time");
         
-        let baseUrl = window.location.href.split('?')[0];
-        try {{ if (window.parent && window.parent.location) {{ baseUrl = window.parent.location.href.split('?')[0]; }} }} catch(e) {{}}
+        document.getElementById("inputDist").value = finalDist;
         
-        let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}";
-        try {{ window.top.location.href = targetUrl; }} catch(e) {{ window.location.href = targetUrl; }}
+        let baseUrl = window.location.href.split('?')[0];
+        try {{ 
+            if (window.parent && window.parent.location) {{ 
+                baseUrl = window.parent.location.href.split('?')[0]; 
+            }} 
+        }} catch(err) {{
+            if (document.referrer) {{
+                baseUrl = document.referrer.split('?')[0];
+            }}
+        }}
+        
+        document.getElementById("stopForm").action = baseUrl;
     }}
     </script>
     """
-    components.html(html_live_tracker, height=200)
+    components.html(html_live_tracker, height=220)
 
 # ============================================================
-# TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE (ĐÃ GỘP LIỀN MẠCH VÀO GIAO DIỆN)
+# TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE
 # ============================================================
 elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     
@@ -487,7 +500,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
         st.rerun()
 
 # ============================================================
-# KHU VỰC XEM BÁO CÁO (ẨN CỘT INDEX MẶC ĐỊNH)
+# KHU VỰC XEM BÁO CÁO
 # ============================================================
 st.markdown("---")
 with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", expanded=False):
