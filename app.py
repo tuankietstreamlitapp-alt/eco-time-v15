@@ -166,11 +166,10 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
+        # Lấy tham số an toàn với giá trị mặc định, chống lỗi NameError tuyệt đối
         dist_val = float(st.query_params.get("dist", 0.0))
         start_ts = float(st.query_params.get("start", time.time()))
-        
-        # Dùng biến an toàn, lấy từ URL hoặc session_state
-        trip_id = st.query_params.get("trip_id", st.session_state.get("trip_id", f"C4567_{int(start_ts)}"))
+        trip_id = str(st.query_params.get("trip_id", f"C4567_{int(start_ts)}"))
         cname = str(st.query_params.get("cname", "Khách vãng lai")).replace("%20", " ")
         cphone = str(st.query_params.get("cphone", ""))
         
@@ -190,29 +189,32 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         km_val = round(dist_val / 1000.0, 2)
         fare_val = round(km_val * DONG_GIA)
         
+        # Chuẩn bị dữ liệu ghi vào DATA_4567
         row_data = [
             int(get_next_stt("DATA_4567")), 
-            str(trip_id), 
-            str(start_time_str), 
-            str(end_time_str), 
-            str(total_time_str),                 
-            str(st.session_state.cust_name), 
-            str(st.session_state.cust_phone), 
+            trip_id, 
+            start_time_str, 
+            end_time_str, 
+            total_time_str,                 
+            cname, 
+            cphone, 
             int(fare_val),                         
-            str(st.session_state['user_name']), 
+            str(st.session_state.get('user_name', 'Tài xế')), 
             int(DONG_GIA), 
             float(km_val), 
             int(fare_val), 
             "HOÀN THÀNH CUỐC XE"            
         ]
         
+        # Thực hiện ghi Sheet chính và xóa Sheet Cache
         append_row_to_sheet("DATA_4567", row_data)
         delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
         update_driver_status(st.session_state.get("user_phone", ""), "Trực tuyến")
         
     except Exception as e:
-        print(f"Lỗi kết thúc chuyến: {e}")
+        print(f"Lỗi hệ thống khi kết thúc chuyến: {e}")
 
+    # Dọn dẹp URL, giữ lại phone để không bị văng đăng nhập
     for p in ["action", "dist", "start", "cname", "cphone", "trip_id"]:
         if p in st.query_params: 
             del st.query_params[p]
