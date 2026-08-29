@@ -5,7 +5,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# CSS TỐI ƯU: GỌN GÀNG, SẠCH SẼ, KHÔNG DƯ THỪA
+# CSS TỐI ƯU GIAO DIỆN
 # ============================================================
 st.markdown(
     """
@@ -92,13 +92,16 @@ st.markdown("<h1 style='text-align:center; color:#059669; margin-bottom:0px; fon
 st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
 
 # KHUNG THẺ CHÍNH
-#st.markdown("<div class='app-card'>", unsafe_allow_html=True)
+st.markdown("<div class='app-card'>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-    st.markdown("<div style='font-weight:bold; font-size:16px; color:#1e293b; margin-bottom:8px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
+    # Đã thêm chữ tiêu đề phía trên thay vì để trống
+    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
+    
+    st.markdown("<div style='font-weight:bold; font-size:15px; color:#475569; margin-bottom:6px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
     st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)")
     st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Ví dụ: 0909xxxxxx")
 
@@ -111,7 +114,7 @@ if st.session_state.mock_state == "home":
 # 2. MÀN HÌNH ĐANG CHẠY
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
-    st.markdown("<div style='text-align:center; color:#059669; font-weight:bold; font-size:17px; margin-bottom:10px;'>⏱️ ĐANG TRONG CUỐC XE...</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;'>⏱️ ĐANG TRONG CUỐC XE...</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='metric-row'>SỐ KM: <span style='color:#0284c7; float:right;'>3.45 km</span></div>", unsafe_allow_html=True)
     st.markdown("<div class='metric-row'>THỜI GIAN ĐI: <span style='color:#059669; float:right;'>00:15:20</span></div>", unsafe_allow_html=True)
@@ -127,7 +130,7 @@ elif st.session_state.mock_state == "running":
 # 3. MÀN HÌNH KẾT QUẢ
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "result":
-    st.markdown("<div style='font-weight:bold; font-size:16px; color:#1e293b; margin-bottom:10px;'>📋 KẾT QUẢ CUỐC ĐI</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;'>📋 KẾT QUẢ CUỐC ĐI</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='metric-row'>SỐ KM: <span style='color:#0284c7; float:right;'>3.45 km</span></div>", unsafe_allow_html=True)
     st.markdown("<div class='metric-row'>THỜI GIAN ĐI: <span style='color:#059669; float:right;'>00:15:20</span></div>", unsafe_allow_html=True)
