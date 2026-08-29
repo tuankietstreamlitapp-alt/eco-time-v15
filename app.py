@@ -1,3 +1,4 @@
+nsafe_allow_html=True)
 import streamlit as st
 
 st.set_page_config(
@@ -98,7 +99,14 @@ st.markdown("<div class='app-card'>", unsafe_allow_html=True)
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-    # Đã thêm chữ tiêu đề phía trên thay vì để trống
+    
+    # THAY VẤN ĐỀ TRỐNG BẰNG 1 BĂNG THÔNG BÁO CÓ CHỮ RẤT ĐẸP MẮT
+    st.markdown("""
+        <div style='background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 15px;'>
+            <span style='color: #047857; font-weight: bold; font-size: 15px;'>🌟 Chúc ní một ngày chạy xe bội thu, khách đông nườm nượp!</span>
+        </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
     
     st.markdown("<div style='font-weight:bold; font-size:15px; color:#475569; margin-bottom:6px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
