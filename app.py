@@ -53,24 +53,27 @@ def get_next_stt(tab_name):
 def append_row_to_sheet(tab_name, row_values):
     try:
         ws, _ = get_worksheet_data(tab_name)
-        ws.append_row(row_values)
-        return True
+        if ws:
+            ws.append_row(row_values)
+            return True
     except:
-        return False
+        pass
+    return False
 
 def delete_row_from_sheet(tab_name, col_name, target_val):
     try:
         ws, records = get_worksheet_data(tab_name)
-        for i, row in enumerate(records, start=2):
-            if str(row.get(col_name, "")) == str(target_val):
-                ws.delete_rows(i)
-                return True
+        if ws:
+            for i, row in enumerate(records, start=2):
+                if str(row.get(col_name, "")) == str(target_val):
+                    ws.delete_rows(i)
+                    return True
     except:
         pass
     return False
 
 def update_driver_status(phone, status):
-    if phone == "KHÁCH HÀNG": return
+    if not phone or phone == "KHÁCH HÀNG": return
     try:
         ws, records = get_worksheet_data("DANG_NHAP")
         if not ws: return
@@ -108,8 +111,8 @@ st.markdown(
     }
     
     .metric-row {
-        font-size: 18px; font-weight: bold; color: #334155; 
-        padding: 8px 0; border-bottom: 1px dashed #cbd5e1;
+        font-size: 19px; font-weight: bold; color: #334155; 
+        padding: 12px 0; border-bottom: 1px dashed #cbd5e1;
     }
     
     .btn-sos { background: #ef4444; color: white; padding: 14px; border-radius: 12px; text-align: center; font-weight: bold; font-size: 16px; text-decoration: none; display: block; }
@@ -126,7 +129,7 @@ st.markdown(
 defaults = {
     "logged_in": False, "user_phone": "", "user_name": "",
     "cust_name": "", "cust_phone": "",
-    "trip_active": False, "trip_id": "", "trip_started_at": None, "trip_ended_at": None,
+    "trip_active": False, "trip_id": "", "trip_started_at": None,
     "trip_total_m": 0.0
 }
 for key, value in defaults.items():
@@ -184,7 +187,7 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # ============================================================
-# 5. XỬ LÝ KẾT THÚC CHUYẾN TỪ URL (AN TOÀN, CHỐNG LỖI ÉP KIỂU)
+# 5. XỬ LÝ KẾT THÚC CHUYẾN TỪ URL (LƯU VÀO DATA, XÓA CACHE)
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
@@ -197,19 +200,16 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     except:
         start_ts = time.time()
     
-    st.session_state.trip_active = False
-    st.session_state.trip_ended_at = time.time()
-    st.session_state.trip_total_m = dist_val
-    st.session_state.trip_started_at = start_ts
+    end_ts = time.time()
     
     cname = st.query_params.get("cname", "Khách vãng lai")
     cphone = st.query_params.get("cphone", "")
-    st.session_state.cust_name = str(cname).replace("%20", " ")
-    st.session_state.cust_phone = str(cphone)
+    cust_name_str = str(cname).replace("%20", " ")
+    cust_phone_str = str(cphone)
     
     start_time_str = get_vn_time(start_ts)
-    end_time_str = get_vn_time(st.session_state['trip_ended_at'])
-    time_diff = max(0, int(st.session_state['trip_ended_at'] - start_ts))
+    end_time_str = get_vn_time(end_ts)
+    time_diff = max(0, int(end_ts - start_ts))
     hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
@@ -220,36 +220,44 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     stt = get_next_stt("DATA_4567")
     row_data = [
         stt, trip_id, start_time_str, end_time_str, total_time_str,                 
-        st.session_state.cust_name, st.session_state.cust_phone,                         
+        cust_name_str, cust_phone_str,                         
         fare_val, st.session_state['user_name'], DONG_GIA, km_val, fare_val, "HOÀN THÀNH"            
     ]
     append_row_to_sheet("DATA_4567", row_data)
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
     update_driver_status(st.session_state["user_phone"], "Trực tuyến")
     
+    # Reset trip session state & trở về màn hình chính ngay lập tức
+    st.session_state.trip_active = False
+    st.session_state.trip_started_at = None
+    st.session_state.trip_total_m = 0.0
+    st.session_state.cust_name = ""
+    st.session_state.cust_phone = ""
+    st.session_state.trip_id = ""
+
     for p in ["action", "dist", "start", "cname", "cphone"]:
         if p in st.query_params: del st.query_params[p]
     
     st.rerun()
 
 # ============================================================
-# 6. GIAO DIỆN CHÍNH (ĐƠN GIẢN, TRỰC QUAN)
+# 6. GIAO DIỆN CHÍNH (ĐƠN GIẢN, TRỰC QUAN CHO BÁC TÀI)
 # ============================================================
 st.markdown(f"<h3 style='text-align:center; color:#059669; margin:0;'>🛵 4567 XE ÔM</h3>", unsafe_allow_html=True)
-st.markdown(f"<div style='text-align:center; font-size:15px; margin-bottom:10px; color:#64748b;'>Tài xế: <b>{st.session_state['user_name']}</b></div>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:center; font-size:16px; margin-bottom:12px; color:#64748b;'>Tài xế: <b>{st.session_state['user_name']}</b></div>", unsafe_allow_html=True)
 
 def reset_trip():
     st.session_state.trip_active = False
     st.session_state.trip_started_at = None
-    st.session_state.trip_ended_at = None
     st.session_state.trip_total_m = 0.0
     st.session_state.cust_name = ""
     st.session_state.cust_phone = ""
+    st.session_state.trip_id = ""
 
 st.markdown("<div class='box-card'>", unsafe_allow_html=True)
 
 # ---> TRẠNG THÁI 1: CHỜ KHÁCH
-if not st.session_state.trip_active and not st.session_state.trip_ended_at:
+if not st.session_state.trip_active:
     st.markdown("<b>THÔNG TIN KHÁCH HÀNG</b>", unsafe_allow_html=True)
     cust_name_in = st.text_input("Tên khách:", placeholder="Bỏ trống nếu khách vãng lai")
     cust_phone_in = st.text_input("Số điện thoại:", placeholder="SĐT khách hàng...")
@@ -271,8 +279,8 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
         st.rerun()
 
-# ---> TRẠNG THÁI 2: ĐANG CHẠY
-elif st.session_state.trip_active:
+# ---> TRẠNG THÁI 2: ĐANG CHẠY (Hiển thị đúng 4 thông số đơn giản)
+else:
     current_start_ts = st.session_state.get('trip_started_at') or time.time()
     
     html_live_tracker = f"""
@@ -280,14 +288,14 @@ elif st.session_state.trip_active:
         <div class="metric-row">SỐ KM: <span id="km" style="color:#0284c7; float:right;">0.00 km</span></div>
         <div class="metric-row">THỜI GIAN ĐI: <span id="time_dur" style="color:#059669; float:right;">00:00:00</span></div>
         <div class="metric-row">ĐƠN GIÁ: <span style="float:right;">{DONG_GIA:,.0f} đ/km</span></div>
-        <div class="metric-row" style="border-bottom: 2px solid #0f172a; font-size: 20px;">THÀNH TIỀN: <span id="price" style="color:#dc2626; float:right; font-weight:900;">0 đ</span></div>
+        <div class="metric-row" style="border-bottom: 2px solid #0f172a; font-size: 21px;">THÀNH TIỀN: <span id="price" style="color:#dc2626; float:right; font-weight:900;">0 đ</span></div>
         
-        <div style="margin-top: 20px;">
+        <div style="margin-top: 25px;">
             <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #ef4444; color: white; border: none; border-radius: 12px; padding: 18px; font-size: 22px; font-weight: bold; cursor: pointer;">
                 KẾT THÚC CHUYẾN ĐI
             </button>
         </div>
-        <div id="debug_acc" style="font-size: 12px; color: #64748b; margin-top: 10px; text-align: center;">Đang kết nối GPS...</div>
+        <div id="debug_acc" style="font-size: 13px; color: #64748b; margin-top: 12px; text-align: center;">Đang kết nối GPS...</div>
     </div>
     <script>
     let totalMeters = parseFloat(localStorage.getItem("xeom_total_meters") || "0.0");
@@ -362,29 +370,7 @@ elif st.session_state.trip_active:
     }}
     </script>
     """
-    components.html(html_live_tracker, height=260)
-
-# ---> TRẠNG THÁI 3: KẾT THÚC
-elif not st.session_state.trip_active and st.session_state.get("trip_ended_at"):
-    km = st.session_state.get("trip_total_m", 0.0) / 1000.0
-    fare = round(km * DONG_GIA)
-    
-    start_ts_safe = st.session_state.get("trip_started_at") or time.time()
-    end_ts_safe = st.session_state.get("trip_ended_at") or time.time()
-    time_diff = max(0, int(end_ts_safe - start_ts_safe))
-    hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
-    time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
-
-    st.markdown("<h4><b>KẾT QUẢ CUỐC ĐI</b></h4>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-row'>SỐ KM: <span style='color:#0284c7; float:right;'>{km:.2f} km</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-row'>THỜI GIAN ĐI: <span style='color:#059669; float:right;'>{time_str}</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-row'>ĐƠN GIÁ: <span style='float:right;'>{DONG_GIA:,.0f} đ/km</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-row' style='border-bottom: 2px solid #0f172a; font-size: 20px;'>THÀNH TIỀN: <span style='color:#dc2626; float:right; font-weight:900;'>{fare:,.0f} đ</span></div>", unsafe_allow_html=True)
-    
-    st.write("")
-    if st.button("NHẬN CUỐC XE MỚI", type="primary", use_container_width=True):
-        reset_trip()
-        st.rerun()
+    components.html(html_live_tracker, height=270)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
