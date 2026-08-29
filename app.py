@@ -166,24 +166,21 @@ if not st.session_state["logged_in"] and "phone" in st.query_params:
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
-        # 1. Lấy dữ liệu an toàn từ URL truyền về
         dist_val = float(st.query_params.get("dist", 0.0))
         start_ts = float(st.query_params.get("start", time.time()))
         
-        # Đồng nhất tên biến để tránh NameError
-        trip_id_val = st.query_params.get("trip_id", f"C4567_{int(start_ts)}")
+        # Dùng biến an toàn, lấy từ URL hoặc session_state
+        trip_id = st.query_params.get("trip_id", st.session_state.get("trip_id", f"C4567_{int(start_ts)}"))
         cname = str(st.query_params.get("cname", "Khách vãng lai")).replace("%20", " ")
         cphone = str(st.query_params.get("cphone", ""))
         
-        # 2. Cập nhật trạng thái session
         st.session_state.trip_active = False
         st.session_state.trip_ended_at = time.time()
         st.session_state.trip_total_m = dist_val
         st.session_state.cust_name = cname
         st.session_state.cust_phone = cphone
-        st.session_state.trip_id = trip_id_val
+        st.session_state.trip_id = trip_id
         
-        # 3. Tính toán thời gian & cước phí
         start_time_str = get_vn_time(start_ts)
         end_time_str = get_vn_time(st.session_state['trip_ended_at'])
         time_diff = max(0, int(st.session_state['trip_ended_at'] - start_ts))
@@ -193,10 +190,9 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         km_val = round(dist_val / 1000.0, 2)
         fare_val = round(km_val * DONG_GIA)
         
-        # 4. Chuẩn bị dòng dữ liệu 13 cột khớp hoàn toàn với DATA_4567
         row_data = [
             int(get_next_stt("DATA_4567")), 
-            str(trip_id_val), 
+            str(trip_id), 
             str(start_time_str), 
             str(end_time_str), 
             str(total_time_str),                 
@@ -210,15 +206,13 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
             "HOÀN THÀNH CUỐC XE"            
         ]
         
-        # 5. Ghi vào DATA_4567 và xóa khỏi CACHE_4567
         append_row_to_sheet("DATA_4567", row_data)
-        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id_val)
+        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
         update_driver_status(st.session_state.get("user_phone", ""), "Trực tuyến")
         
     except Exception as e:
-        print(f"Lỗi xử lý kết thúc chuyến: {e}")
+        print(f"Lỗi kết thúc chuyến: {e}")
 
-    # 6. Dọn dẹp URL, chỉ giữ lại số điện thoại để giữ phiên đăng nhập
     for p in ["action", "dist", "start", "cname", "cphone", "trip_id"]:
         if p in st.query_params: 
             del st.query_params[p]
@@ -428,22 +422,32 @@ with c_zalo:
 
 st.write("")
 if st.button("🔒 ĐĂNG XUẤT", use_container_width=True):
-    if st.session_state.trip_active: 
+    if st.session_state.get("trip_active", False): 
         end_ts = time.time()
-        start_ts = st.session_state.trip_started_at
-        trip_id = st.session_state.trip_id
-        km_val = round(st.session_state.trip_total_m / 1000.0, 2)
+        start_ts = st.session_state.get("trip_started_at", end_ts)
+        trip_id = st.session_state.get("trip_id", f"C4567_{int(start_ts)}")
+        km_val = round(st.session_state.get("trip_total_m", 0.0) / 1000.0, 2)
         fare_val = round(km_val * DONG_GIA)
         
         row_data = [
-            get_next_stt("DATA_4567"), trip_id, get_vn_time(start_ts), get_vn_time(end_ts), "00:00:00",
-            st.session_state.get("cust_name"), st.session_state.get("cust_phone"), fare_val,
-            st.session_state['user_name'], DONG_GIA, km_val, fare_val, "ÉP KẾT THÚC"
+            int(get_next_stt("DATA_4567")), 
+            str(trip_id), 
+            str(get_vn_time(start_ts)), 
+            str(get_vn_time(end_ts)), 
+            "00:00:00",
+            str(st.session_state.get("cust_name", "")), 
+            str(st.session_state.get("cust_phone", "")), 
+            int(fare_val),
+            str(st.session_state.get("user_name", "")), 
+            int(DONG_GIA), 
+            float(km_val), 
+            int(fare_val), 
+            "ÉP KẾT THÚC KHI ĐĂNG XUẤT"
         ]
         append_row_to_sheet("DATA_4567", row_data)
         delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
 
-    update_driver_status(st.session_state["user_phone"], "Ngoại tuyến")
+    update_driver_status(st.session_state.get("user_phone", ""), "Ngoại tuyến")
     st.session_state.clear()
     st.query_params.clear()
     st.rerun()
