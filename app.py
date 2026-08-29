@@ -1,4 +1,3 @@
-nsafe_allow_html=True)
 import streamlit as st
 
 st.set_page_config(
