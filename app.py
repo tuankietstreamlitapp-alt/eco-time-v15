@@ -65,6 +65,27 @@ def append_row_to_sheet(tab_name, row_values):
         print(f"Lỗi ghi sheet {tab_name}: {e}") # Báo lỗi ra console nếu có
         return False
 
+# BƯỚC VÁ LỖI QUAN TRỌNG: Hàm xóa dòng trong Sheet Cache
+def delete_row_from_sheet(tab_name, col_name, value):
+    try:
+        ws, records = get_worksheet_data(tab_name)
+        if not ws or not records: return False
+        
+        headers = ws.row_values(1)
+        if col_name not in headers: return False
+        
+        col_idx = headers.index(col_name) + 1
+        
+        # Duyệt ngược từ dưới lên để tránh lỗi lệch index khi xóa dòng
+        for i in range(len(records), 0, -1):
+            if str(records[i-1].get(col_name, "")).strip() == str(value).strip():
+                ws.delete_rows(i + 1)
+                return True
+        return False
+    except Exception as e:
+        print(f"Lỗi xóa dòng ở sheet {tab_name}: {e}")
+        return False
+
 def update_driver_status(phone, status):
     if phone == "KHÁCH HÀNG": return
     try:
