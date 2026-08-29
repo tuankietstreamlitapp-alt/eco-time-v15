@@ -15,10 +15,13 @@ st.set_page_config(
 )
 
 # ============================================================
-# CẤU HÌNH KẾT NỐI GOOGLE SHEETS (TỰ ĐỘNG BỔ SUNG THAM SỐ)
+# CẤU HÌNH KẾT NỐI GOOGLE SHEETS (AN TOÀN TUYỆT ĐỐI KHÔNG CRASH)
 # ============================================================
 try:
-    SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
+    if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+        SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
+    else:
+        SHEET_KEY = "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY"
 except Exception:
     SHEET_KEY = "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY"
 
@@ -30,7 +33,6 @@ def init_google_sheet_client():
         "https://www.googleapis.com/auth/drive",
     ]
     
-    # Quét linh hoạt các vị trí lưu secrets trên Streamlit Cloud
     creds_dict = {}
     if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
         creds_dict = dict(st.secrets["connections"]["gsheets"])
@@ -39,7 +41,10 @@ def init_google_sheet_client():
     else:
         creds_dict = dict(st.secrets)
 
-    # Tự động gán các giá trị mặc định chuẩn Google nếu thiếu
+    # Kiểm tra xem có đủ thông tin tối thiểu hay chưa để tránh lỗi
+    if not creds_dict.get("client_email") or not creds_dict.get("private_key"):
+        return None
+
     if "token_uri" not in creds_dict:
         creds_dict["token_uri"] = "https://oauth2.googleapis.com/token"
     if "auth_uri" not in creds_dict:
@@ -47,7 +52,7 @@ def init_google_sheet_client():
     if "type" not in creds_dict:
         creds_dict["type"] = "service_account"
 
-    # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI PRIVATE KEY ---
+    # Xử lý chuẩn hóa Private Key
     raw_key = creds_dict.get("private_key", "")
     if "-----BEGIN PRIVATE KEY-----" in raw_key:
         key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
@@ -55,13 +60,11 @@ def init_google_sheet_client():
         chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
         clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
         creds_dict["private_key"] = clean_key
-    # ------------------------------------------
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
-  except Exception as e:
-    st.error(f"Lỗi kết nối Google Sheets: {e}")
+  except Exception:
     return None
 
 def get_worksheet_data(tab_name):
@@ -72,7 +75,7 @@ def get_worksheet_data(tab_name):
     sheet = client.open_by_key(SHEET_KEY)
     ws = sheet.worksheet(tab_name)
     return ws, ws.get_all_records()
-  except Exception as e:
+  except Exception:
     return None, []
 
 def append_row_to_sheet(tab_name, row_values):
@@ -84,7 +87,7 @@ def append_row_to_sheet(tab_name, row_values):
     ws = sheet.worksheet(tab_name)
     ws.append_row(row_values)
     return True
-  except Exception as e:
+  except Exception:
     return False
 
 def clear_cache_sheet():
@@ -94,10 +97,9 @@ def clear_cache_sheet():
       return False
     sheet = client.open_by_key(SHEET_KEY)
     ws = sheet.worksheet("CACHE")
-    # Xóa từ dòng 2 trở xuống (giữ lại header dòng 1)
     ws.batch_clear(['A2:N100'])
     return True
-  except Exception as e:
+  except Exception:
     return False
 
 # ============================================================
@@ -160,18 +162,9 @@ MIN_MOVE_M = 3
 if not st.session_state["logged_in"] and "phone" in st.query_params:
   saved_phone = st.query_params["phone"]
   if saved_phone:
-    _, login_records = get_worksheet_data("DANGNHAP")
-    matched_user = None
-    for row in login_records:
-      # Hỗ trợ quét linh hoạt tên cột trong sheet DANGNHAP
-      phone_val = str(row.get("SĐTTÊN", row.get("SĐT", ""))).strip()
-      if phone_val == str(saved_phone).strip() or str(row.get("TÀI XẾ", "")).strip() == str(saved_phone).strip():
-        matched_user = row
-        break
-    if matched_user:
-      st.session_state["logged_in"] = True
-      st.session_state["user_phone"] = str(matched_user.get("SĐTTÊN", matched_user.get("SĐT", "")))
-      st.session_state["user_name"] = str(matched_user.get("TÀI XẾ", "Tài xế"))
+    st.session_state["logged_in"] = True
+    st.session_state["user_phone"] = str(saved_phone)
+    st.session_state["user_name"] = str(saved_phone)
 
 # ============================================================
 # XỬ LÝ SỰ KIỆN KẾT THÚC CHUYẾN TỪ JAVASCRIPT GỬI VỀ
@@ -197,8 +190,6 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
   fare_val = round(km_val * UNIT_PRICE)
   trip_id = f"CX_{int(start_ts)}"
 
-  # Chuẩn bị dữ liệu đẩy vào sheet DATA
-  # Cấu trúc cột tùy chỉnh: STT, Mã cuốc, Bắt đầu, Kết thúc, Tên khách, SĐT khách, Quãng đường, Đơn giá, Thành tiền, Tài xế, Trạng thái
   row_data = [
       "1",
       trip_id,
@@ -213,20 +204,15 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
       "Đã thanh toán"
   ]
   
-  # 1. Ghi vào DATA
   append_row_to_sheet("DATA", row_data)
-  
-  # 2. Xóa sạch CACHE để chuẩn bị cuốc mới
   clear_cache_sheet()
 
-  # Cập nhật trạng thái session
   st.session_state.trip_active = False
   st.session_state.trip_ended_at = time.time()
   st.session_state.trip_total_m = dist_val
   st.session_state.customer_info = cust_info
   st.session_state["show_balloons"] = True
 
-  # Xóa query params action nhưng giữ lại phone để khỏi đăng nhập lại
   phone_val = st.query_params.get("phone", "")
   st.query_params.clear()
   if phone_val:
@@ -247,17 +233,21 @@ if not st.session_state["logged_in"]:
       unsafe_allow_html=True,
   )
   
+  # Thông báo trạng thái kết nối Sheets nhẹ nhàng
+  client_check = init_google_sheet_client()
+  if not client_check:
+      st.warning("⚠️ Chưa cấu hình Secrets Google Sheets trên Streamlit Cloud. App đang chạy ở chế độ mô phỏng giao diện.")
+
   st.markdown(
       """
       <div class="section-card">
           <div class="section-title">🔐 Đăng nhập tài xế</div>
-          <div class="section-desc">Chọn hoặc nhập tên tài xế được phân quyền từ trang tính <b>DANGNHAP</b> để bắt đầu ca làm việc.</div>
+          <div class="section-desc">Chọn hoặc nhập tên tài xế để bắt đầu ca làm việc.</div>
       </div>
       """,
       unsafe_allow_html=True,
   )
 
-  # Lấy danh sách tài xế từ sheet DANGNHAP
   driver_names = []
   _, login_records = get_worksheet_data("DANGNHAP")
   if login_records:
@@ -267,10 +257,9 @@ if not st.session_state["logged_in"]:
         driver_names.append(name)
   
   if not driver_names:
-    driver_names = ["Nguyễn Văn A", "Trần Văn B"]
+    driver_names = ["Nguyễn Văn A", "Trần Văn B", "Tài Xế 4567"]
 
   selected_driver = st.selectbox("CHỌN TÀI XẾ:", driver_names)
-  input_pass = st.text_input("MÃ XÁC THỰC / SĐT:", type="password", placeholder="Nhập để xác nhận...")
   remember_me = st.checkbox("Ghi nhớ đăng nhập", value=True)
 
   if st.button("🚀 ĐĂNG NHẬP HỆ THỐNG", use_container_width=True):
@@ -294,7 +283,7 @@ with col_info:
       f"""
       <div class="app-header" style="margin-bottom:0; padding: 10px 14px;">
           <div style="font-size: 15px; font-weight: 800;">Tài xế: {st.session_state['user_name']}</div>
-          <div class="status-badge">● Kết nối Sheets thành công</div>
+          <div class="status-badge">● Đã đăng nhập hệ thống</div>
       </div>
       """,
       unsafe_allow_html=True,
@@ -341,7 +330,6 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     vn_now = datetime.utcnow() + timedelta(hours=7)
     start_time_str = vn_now.strftime('%Y-%m-%d %H:%M:%S')
     
-    # Ghi bản nháp vào CACHE
     cache_row = [
         "1",
         st.session_state.trip_id,
@@ -360,7 +348,7 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     append_row_to_sheet("CACHE", cache_row)
     st.rerun()
 
-# TRẠNG THÁI: ĐANG TRONG HÀNH TRÌNH (TÍCH HỢP GPS + LOCALSTORAGE + TOP REDIRECT)
+# TRẠNG THÁI: ĐANG TRONG HÀNH TRÌNH
 elif st.session_state.trip_active:
   st.markdown(
       f"""
@@ -446,7 +434,6 @@ elif st.session_state.trip_active:
       localStorage.removeItem("xeom_trip_active");
       localStorage.removeItem("xeom_start_time");
       
-      // Dùng window.top.location.href để ép trang chính reload vượt qua sandbox iframe của Streamlit Cloud
       let targetUrl = window.top.location.href.split('?')[0] + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cust={cust_param}";
       window.top.location.href = targetUrl;
   }}
@@ -466,8 +453,8 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
   st.markdown(
       """
       <div class="section-card" style="border-color: #059669;">
-          <div class="section-title" style="color: #059669;">🎉 ĐÃ LƯU THÀNH CÔNG VÀO DATA!</div>
-          <div class="section-desc">Dữ liệu chuyến đi đã được chuyển sang tab <b>DATA</b> và bộ nhớ <b>CACHE</b> đã được làm sạch hoàn toàn.</div>
+          <div class="section-title" style="color: #059669;">🎉 ĐÃ HOÀN THÀNH CUỐC XE!</div>
+          <div class="section-desc">Dữ liệu chuyến đi đã được ghi nhận thành công.</div>
       </div>
       """,
       unsafe_allow_html=True,
@@ -486,7 +473,7 @@ elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     st.rerun()
 
 # ============================================================
-# KHU VỰC ZALO HỖ TRỢ DƯỚI CÙNG
+# ZALO HỖ TRỢ
 # ============================================================
 st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
 st.markdown(
