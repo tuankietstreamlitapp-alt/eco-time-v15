@@ -95,7 +95,7 @@ st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margi
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
     
     st.markdown("<div style='font-weight:bold; font-size:15px; color:#475569; margin-bottom:6px;'>📍 THÔNG TIN KHÁCH HÀNG</div>", unsafe_allow_html=True)
     st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)")
