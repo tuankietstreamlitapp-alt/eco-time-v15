@@ -94,7 +94,6 @@ st.markdown(
     .stApp { background-color: #f8fafc; }
     .block-container { max-width: 550px; padding: 1rem 1rem 3rem 1rem; }
     
-    /* Nút bấm to rõ, dễ thao tác */
     div.stButton > button { 
         border-radius: 12px !important; 
         font-weight: bold !important; 
@@ -185,20 +184,28 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # ============================================================
-# 5. XỬ LÝ KẾT THÚC CHUYẾN TỪ URL (GHI DATA, XÓA CACHE, GIỮ PHIÊN)
+# 5. XỬ LÝ KẾT THÚC CHUYẾN TỪ URL (AN TOÀN, CHỐNG LỖI ÉP KIỂU)
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
-    dist_val = float(st.query_params.get("dist", 0.0))
-    start_ts = float(st.query_params.get("start", time.time()))
+    try:
+        dist_val = float(st.query_params.get("dist", 0.0) or 0.0)
+    except:
+        dist_val = 0.0
+
+    try:
+        start_ts = float(st.query_params.get("start", time.time()) or time.time())
+    except:
+        start_ts = time.time()
     
     st.session_state.trip_active = False
     st.session_state.trip_ended_at = time.time()
     st.session_state.trip_total_m = dist_val
+    st.session_state.trip_started_at = start_ts
     
     cname = st.query_params.get("cname", "Khách vãng lai")
     cphone = st.query_params.get("cphone", "")
-    st.session_state.cust_name = cname.replace("%20", " ")
-    st.session_state.cust_phone = cphone
+    st.session_state.cust_name = str(cname).replace("%20", " ")
+    st.session_state.cust_phone = str(cphone)
     
     start_time_str = get_vn_time(start_ts)
     end_time_str = get_vn_time(st.session_state['trip_ended_at'])
@@ -210,7 +217,6 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     fare_val = round(km_val * DONG_GIA)
     trip_id = f"C4567_{int(start_ts)}"
     
-    # Lưu vào sheet DATA để trả lương, xóa khỏi CACHE
     stt = get_next_stt("DATA_4567")
     row_data = [
         stt, trip_id, start_time_str, end_time_str, total_time_str,                 
@@ -242,7 +248,7 @@ def reset_trip():
 
 st.markdown("<div class='box-card'>", unsafe_allow_html=True)
 
-# ---> TRẠNG THÁI 1: CHỜ KHÁCH (Nhập thông tin & Nút Bắt Đầu)
+# ---> TRẠNG THÁI 1: CHỜ KHÁCH
 if not st.session_state.trip_active and not st.session_state.trip_ended_at:
     st.markdown("<b>THÔNG TIN KHÁCH HÀNG</b>", unsafe_allow_html=True)
     cust_name_in = st.text_input("Tên khách:", placeholder="Bỏ trống nếu khách vãng lai")
@@ -265,9 +271,9 @@ if not st.session_state.trip_active and not st.session_state.trip_ended_at:
         update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
         st.rerun()
 
-# ---> TRẠNG THÁI 2: ĐANG CHẠY (Hiển thị trực quan theo đúng yêu cầu & Nút Kết Thúc cùng vị trí)
+# ---> TRẠNG THÁI 2: ĐANG CHẠY
 elif st.session_state.trip_active:
-    current_start_ts = st.session_state.get('trip_started_at', time.time())
+    current_start_ts = st.session_state.get('trip_started_at') or time.time()
     
     html_live_tracker = f"""
     <div style="font-family: inherit;">
@@ -358,12 +364,14 @@ elif st.session_state.trip_active:
     """
     components.html(html_live_tracker, height=260)
 
-# ---> TRẠNG THÁI 3: KẾT THÚC (Hiện kết quả đơn giản, không popup rườm rà)
-elif not st.session_state.trip_active and st.session_state.trip_ended_at:
-    km = st.session_state.trip_total_m / 1000.0
+# ---> TRẠNG THÁI 3: KẾT THÚC
+elif not st.session_state.trip_active and st.session_state.get("trip_ended_at"):
+    km = st.session_state.get("trip_total_m", 0.0) / 1000.0
     fare = round(km * DONG_GIA)
     
-    time_diff = max(0, int(st.session_state['trip_ended_at'] - st.session_state['trip_started_at']))
+    start_ts_safe = st.session_state.get("trip_started_at") or time.time()
+    end_ts_safe = st.session_state.get("trip_ended_at") or time.time()
+    time_diff = max(0, int(end_ts_safe - start_ts_safe))
     hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
     time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
@@ -394,9 +402,9 @@ st.write("")
 if st.button("ĐĂNG XUẤT", use_container_width=True):
     if st.session_state.trip_active: 
         end_ts = time.time()
-        start_ts = st.session_state.trip_started_at
-        trip_id = st.session_state.trip_id
-        km_val = round(st.session_state.trip_total_m / 1000.0, 2)
+        start_ts = st.session_state.get("trip_started_at") or time.time()
+        trip_id = st.session_state.get("trip_id", "C4567_0")
+        km_val = round(st.session_state.get("trip_total_m", 0.0) / 1000.0, 2)
         fare_val = round(km_val * DONG_GIA)
         
         row_data = [
