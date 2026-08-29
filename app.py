@@ -1,452 +1,490 @@
-from datetime import datetime, timedelta
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import math
+import time
+import urllib.parse
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm - Google Sheets Data",
-    page_icon="🛵",
-    layout="centered",
+    page_title="4567 Xe Ôm — Google Sheets Edition", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
 # CẤU HÌNH KẾT NỐI GOOGLE SHEETS
 # ============================================================
+SHEET_KEY = st.secrets["connections"]["gsheets"].get("spreadsheet", "1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY")
+
 @st.cache_resource
-def init_google_sheets():
+def init_google_sheet_client():
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    return client
+
+def get_worksheet_data(tab_name):
     try:
-        scope = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds_dict["type"] = "service_account"
-
-        raw_key = creds_dict.get("private_key", "")
-        if "-----BEGIN PRIVATE KEY-----" in raw_key:
-            key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
-            key_body = key_body.replace(" ", "").replace("\\n", "").replace("\n", "").replace("\r", "")
-            chunks = [key_body[i:i+64] for i in range(0, len(key_body), 64)]
-            clean_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
-            creds_dict["private_key"] = clean_key
-
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-
-        SHEET_URL = "https://docs.google.com/spreadsheets/d/1A3-1am25vZLN57SD7pkfxxQtymCaPnCj9HgBpw5RcTY/edit?usp=drivesdk"
-        sheet_file = client.open_by_url(SHEET_URL)
-        return (
-            sheet_file.worksheet("CACHE"),
-            sheet_file.worksheet("DATA"),
-            True,
-        )
+        client = init_google_sheet_client()
+        try:
+            sheet = client.open_by_key(SHEET_KEY)
+        except Exception:
+            sheet = client.open("4567_XEOM_2026")
+        ws = sheet.worksheet(tab_name)
+        return ws, ws.get_all_records()
     except Exception as e:
-        return None, None, str(e)
+        st.error(f"Lỗi kết nối Google Sheets ({tab_name}): {e}")
+        return None, []
 
-sheet_cache, sheet_data, is_connected = init_google_sheets()
+def append_row_to_sheet(tab_name, row_values):
+    try:
+        client = init_google_sheet_client()
+        try:
+            sheet = client.open_by_key(SHEET_KEY)
+        except Exception:
+            sheet = client.open("4567_XEOM_2026")
+        ws = sheet.worksheet(tab_name)
+        ws.append_row(row_values)
+        return True
+    except Exception as e:
+        st.error(f"Lỗi ghi dữ liệu vào {tab_name}: {e}")
+        return False
+
+def delete_row_from_sheet(tab_name, col_name, target_val):
+    try:
+        ws, records = get_worksheet_data(tab_name)
+        if ws is None or not records:
+            return False
+        
+        # Tìm dòng cần xoá (ví dụ: quét cột STT trùng với trip_id)
+        for i, row in enumerate(records, start=2):  # start=2 vì dòng 1 là Header
+            if str(row.get(col_name, "")) == str(target_val):
+                ws.delete_rows(i)
+                return True
+        return False
+    except Exception as e:
+        st.error(f"Lỗi xóa dữ liệu khỏi {tab_name}: {e}")
+        return False
 
 # ============================================================
-# CSS TỐI ƯU GIAO DIỆN
+# CSS GIAO DIỆN XANH SM
 # ============================================================
 st.markdown(
     """
     <style>
-    .stApp { background-color: #f1f5f9; }
-    .block-container { max-width: 500px; padding-top: 1rem !important; padding-bottom: 2rem; padding-left: 1rem; padding-right: 1rem; }
-    header { visibility: hidden; }
-    div.stButton > button { border-radius: 14px !important; font-weight: 900 !important; font-size: 20px !important; min-height: 55px !important; }
-    .app-card { background: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); margin-top: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
-    .stTextInput input { background-color: #f8fafc !important; border: 1.5px solid #cbd5e1 !important; border-radius: 12px !important; font-size: 16px !important; color: #1e293b !important; padding: 10px 14px !important; }
-    .stTextInput input:focus { border-color: #059669 !important; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important; }
-    .btn-zalo-single { background: #0284c7; color: white !important; padding: 14px; border-radius: 14px; text-align: center; font-weight: bold; font-size: 18px; display: block; text-decoration: none; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2); }
-    .btn-zalo-single:hover { opacity: 0.9; color: white !important; }
+    .stApp { background-color: #f8fafc; }
+    .block-container { max-width: 720px; padding-top: 1.2rem; padding-bottom: 2.5rem; padding-left: 1rem; padding-right: 1rem; }
+    .app-header {
+        background: linear-gradient(135deg, #00A86B 0%, #00804D 100%);
+        padding: 20px 24px; border-radius: 20px; color: white; margin-bottom: 16px;
+        box-shadow: 0 8px 24px rgba(0, 168, 107, 0.24);
+    }
+    .app-title { font-size: 22px; font-weight: 900; margin: 0; color: white; }
+    .app-subtitle { margin: 4px 0 0 0; color: #e2e8f0; font-size: 13px; font-weight: 500; }
+    .status-badge { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(255, 255, 255, 0.2); color: #ffffff; margin-top: 8px; }
+    .section-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04); }
+    .section-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; }
+    .section-desc { font-size: 13px; color: #64748b; margin-bottom: 14px; line-height: 1.4; }
+    div.stButton > button {
+        border-radius: 12px !important; font-weight: 800 !important; min-height: 50px !important;
+        background-color: #00A86B !important; color: white !important; border: none !important;
+        box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2);
+    }
+    div.stButton > button:hover { background-color: #008f5a !important; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Khởi tạo trạng thái ứng dụng
-if "mock_state" not in st.session_state:
-    st.session_state.mock_state = "home"
-if "customer_name" not in st.session_state:
-    st.session_state.customer_name = ""
-if "customer_phone" not in st.session_state:
-    st.session_state.customer_phone = ""
-if "ma_cuoc_xe" not in st.session_state:
-    st.session_state.ma_cuoc_xe = ""
-if "start_time_str" not in st.session_state:
-    st.session_state.start_time_str = ""
+# ============================================================
+# KHỞI TẠO SESSION STATE & TỰ ĐỘNG ĐĂNG NHẬP
+# ============================================================
+defaults = {
+    "logged_in": False,
+    "user_phone": "",
+    "user_name": "",
+    "customer_info": "",
+    "trip_active": False,
+    "trip_id": "",
+    "trip_started_at": None,
+    "trip_ended_at": None,
+    "trip_total_m": 0.0,
+    "trip_status": "Chưa bắt đầu",
+    "show_balloons": False
+}
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-UNIT_PRICE = 5000  # 5,000 đ/km
-DRIVER_NAME = "Nguyễn Văn A"
+DONG_GIA = 5000  # VNĐ / km
+GPS_ACCURACY_MAX_M = 60
+MIN_MOVE_M = 4
 
-# Khôi phục trạng thái nếu lỡ tải lại trang
-if st.session_state.mock_state == "home" and is_connected is True and sheet_cache:
+if not st.session_state["logged_in"] and "phone" in st.query_params:
+    saved_phone = st.query_params["phone"]
+    if saved_phone:
+        _, login_records = get_worksheet_data("DANG_NHAP")
+        matched_user = None
+        if saved_phone.upper() == "KHÁCH HÀNG":
+            matched_user = {"SĐT": "KHÁCH HÀNG", "TÊN TÀI XẾ": "Khách hàng tự do"}
+        else:
+            for row in login_records:
+                if str(row.get("SĐT", "")).strip() == str(saved_phone).strip():
+                    matched_user = row
+                    break
+        if matched_user:
+            st.session_state["logged_in"] = True
+            st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
+            st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Thành viên"))
+
+# ============================================================
+# MÀN HÌNH ĐĂNG NHẬP
+# ============================================================
+if not st.session_state["logged_in"]:
+    st.markdown(
+        """
+        <div class="app-header">
+            <div class="app-title">🛵 4567 XE ÔM</div>
+            <div class="app-subtitle">Hệ thống quản lý trực tuyến qua Google Sheets</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    st.markdown(
+        """
+        <div class="section-card">
+            <div class="section-title">🔐 Đăng nhập hệ thống</div>
+            <div class="section-desc">Nhập số điện thoại tài xế được cấp phép trong danh sách trang tính để tiếp tục.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    phone_input = st.text_input("Số điện thoại tài xế / Khách hàng:", placeholder="Ví dụ: 0978666620 hoặc KHÁCH HÀNG")
+    remember_me = st.checkbox("Ghi nhớ đăng nhập (Không cần đăng nhập lại lần sau)", value=True)
+    
+    if st.button("XÁC NHẬN ĐĂNG NHẬP", use_container_width=True):
+        if phone_input.strip() == "":
+            st.warning("Ní ơi, vui lòng nhập số điện thoại hoặc tên tài khoản!")
+        else:
+            with st.spinner("Đang kiểm tra dữ liệu từ Trang tính..."):
+                _, login_records = get_worksheet_data("DANG_NHAP")
+                matched_user = None
+                if phone_input.upper() == "KHÁCH HÀNG":
+                    matched_user = {"SĐT": "KHÁCH HÀNG", "TÊN TÀI XẾ": "Khách hàng tự do"}
+                else:
+                    for row in login_records:
+                        if str(row.get("SĐT", "")).strip() == phone_input.strip():
+                            matched_user = row
+                            break
+                
+                if matched_user:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
+                    st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Thành viên"))
+                    if remember_me:
+                        st.query_params["phone"] = st.session_state["user_phone"]
+                    else:
+                        if "phone" in st.query_params:
+                            del st.query_params["phone"]
+                    st.success(f"Xin chào **{st.session_state['user_name']}**! Đăng nhập thành công.")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("❌ Số điện thoại không tồn tại trong danh sách phân quyền (`DANG_NHAP`)!")
+    st.stop()
+
+# ============================================================
+# XỬ LÝ SỰ KIỆN KẾT THÚC CHUYẾN TỨC THÌ QUA URL PARAMS
+# ============================================================
+if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
-        cache_rows = sheet_cache.get_all_values()
-        if len(cache_rows) > 1:
-            last_row = cache_rows[1] 
-            if len(last_row) >= 13:
-                st.session_state.ma_cuoc_xe = last_row[1]
-                st.session_state.start_time_str = last_row[2]
-                st.session_state.customer_name = last_row[5]
-                st.session_state.customer_phone = last_row[6]
-                st.session_state.mock_state = "running" 
-    except Exception:
-        pass
+        dist_val = float(st.query_params.get("dist", 0.0))
+    except (TypeError, ValueError):
+        dist_val = 0.0
 
-# TIÊU ĐỀ APP
-st.markdown("<h1 style='text-align:center; color:#059669; margin-bottom:0px; font-size:28px;'>🛵 4567 XE ÔM</h1>", unsafe_allow_html=True)
+    try:
+        start_ts = float(st.query_params.get("start", time.time()))
+    except (TypeError, ValueError):
+        start_ts = time.time()
 
-if is_connected is True:
-    st.markdown("<div style='text-align:center; font-size:14px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Đã kết nối Google Sheets</span></div>", unsafe_allow_html=True)
-else:
-    st.error(f"⚠️ Lỗi kết nối Google Sheets chi tiết: {is_connected}")
+    cust_info = st.query_params.get("cust", st.session_state.get("customer_info", "Khách vãng lai"))
+    st.session_state.customer_info = cust_info
 
-# -------------------------------------------------------------------------
-# 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
-# -------------------------------------------------------------------------
-if st.session_state.mock_state == "home":
-    st.markdown("<div class='app-card'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
-
-    c_name = st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)", key="input_name")
-    c_phone = st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Ví dụ: 0909xxxxxx", key="input_phone")
-
-    st.write("")
-    if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
-        st.session_state.customer_name = c_name.strip() if c_name.strip() else "Khách vãng lai"
-        st.session_state.customer_phone = c_phone.strip() if c_phone.strip() else "Không có"
-
-        vn_now = datetime.utcnow() + timedelta(hours=7)
-        st.session_state.ma_cuoc_xe = f"CX_{vn_now.strftime('%Y%m%d_%H%M%S')}"
-        st.session_state.start_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
-
-        if is_connected is True and sheet_cache:
-            try:
-                new_row = [
-                    "1",                                 
-                    st.session_state.ma_cuoc_xe,         
-                    st.session_state.start_time_str,     
-                    "",                                  
-                    "",                                  
-                    st.session_state.customer_name,      
-                    st.session_state.customer_phone,     
-                    "0",                                 
-                    DRIVER_NAME,                         
-                    str(UNIT_PRICE),                     
-                    "0",                                 
-                    "0",                                 
-                    "Đang chạy",                         
-                ]
-                sheet_cache.append_row(new_row)
-            except Exception as e:
-                pass
-
-        st.session_state.mock_state = "running"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN (TÍCH HỢP GPS)
-# -------------------------------------------------------------------------
-elif st.session_state.mock_state == "running":
-    query_params = st.query_params
-    action_trigger = query_params.get("action", None)
-
-    # KHI BẤM "KẾT THÚC CHUYẾN ĐI"
-    if action_trigger == "end":
-        final_km = query_params.get("km", "0")
+    st.session_state.trip_active = False
+    st.session_state.trip_ended_at = time.time()
+    st.session_state.trip_total_m = dist_val
+    st.session_state.trip_status = "Đã hoàn thành"
+    
+    start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_ts))
+    end_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state['trip_ended_at']))
+    km_val = round(dist_val / 1000.0, 2)
+    fare_val = round(km_val * DONG_GIA)
+    trip_id = f"C4567_{int(start_ts)}"
+    
+    # MAPPING CHÍNH XÁC VỚI CỘT TRÊN GOOGLE SHEETS
+    row_data = [
+        trip_id,                        # 1. STT
+        start_time_str,                 # 2. THỜI GIAN BẮT ĐẦU
+        end_time_str,                   # 3. THỜI GIAN KẾT THÚC
+        cust_info,                      # 4. KHÁCH HÀNG
+        "",                             # 5. SĐT KH
+        fare_val,                       # 6. CƯỚC TẠM TÍNH
+        st.session_state['user_name'],  # 7. TÀI XẾ
+        km_val,                         # 8. TỔNG KM
+        fare_val,                       # 9. THÀNH TIỀN
+        "HOÀN THÀNH CUỐC XE"            # 10. GHI CHÚ
+    ]
+    
+    # 1. GHI VÀO DATA_4567
+    append_row_to_sheet("DATA_4567", row_data)
+    
+    # 2. TÌM VÀ XOÁ BẢN NHÁP BÊN CACHE_4567 ĐỂ TIẾT KIỆM BỘ NHỚ
+    delete_row_from_sheet("CACHE_4567", "STT", trip_id)
+    
+    # 3. BẬT CỜ KÍCH HOẠT HIỆU ỨNG BÓNG BAY
+    st.session_state["show_balloons"] = True
+    
+    phone_val = st.query_params.get("phone", "")
+    st.query_params.clear()
+    if phone_val:
+        st.query_params["phone"] = phone_val
         
-        if is_connected is True and sheet_cache:
-            try:
-                cache_rows = sheet_cache.get_all_values()
-                for i, row in enumerate(cache_rows):
-                    if len(row) > 1 and row[1] == st.session_state.ma_cuoc_xe:
-                        row_idx = i + 1
-                        while len(row) < 13:
-                            row.append("")
-                        
-                        vn_now = datetime.utcnow() + timedelta(hours=7)
-                        end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
-                        row[3] = end_time_str
-                        
-                        # 1. TỔNG THỜI GIAN = THỜI GIAN KẾT THÚC - BẮT ĐẦU
-                        try:
-                            start_obj = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
-                            delta_sec = int((vn_now - start_obj).total_seconds())
-                            h, rem = divmod(delta_sec, 3600)
-                            m, s = divmod(rem, 60)
-                            row[4] = f"{h:02d}:{m:02d}:{s:02d}"
-                        except:
-                            row[4] = query_params.get("time", "00:00:00")
-                        
-                        # 2. SỐ KM THỰC TẾ & 3. TỔNG TIỀN = SỐ KM * ĐƠN GIÁ
-                        try:
-                            km_float = float(final_km)
-                            calc_money = int(km_float * UNIT_PRICE)
-                        except:
-                            calc_money = 0
+    st.rerun()
 
-                        row[7] = str(calc_money)        # SỐ TIỀN THU
-                        row[10] = str(final_km)         # SỐ KM
-                        row[11] = str(calc_money)       # TỔNG TIỀN
-                        row[12] = "Chờ thanh toán"      # TRẠNG THÁI
-                        
-                        # Xoá dòng cũ & Chèn dòng mới hoàn chỉnh (Tránh lỗi giới hạn API 429)
-                        sheet_cache.delete_rows(row_idx)
-                        sheet_cache.insert_row(row, index=row_idx)
-                        break
-            except Exception:
-                pass
+# ============================================================
+# GIAO DIỆN CHÍNH
+# ============================================================
+col_logo, col_text = st.columns([1, 4], vertical_alignment="center")
+with col_logo:
+    st.write("🛵 **4567**")
+with col_text:
+    st.markdown(
+        f"""
+        <div class="app-header" style="margin-bottom:0; padding: 12px 18px;">
+            <div style="font-size: 16px; font-weight: 800;">Tài xế: {st.session_state['user_name']}</div>
+            <div class="status-badge">● SĐT: {st.session_state['user_phone']} | Online Sheets</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # KHI BẤM "XÁC NHẬN THANH TOÁN"
-    elif action_trigger == "pay":
-        final_km = query_params.get("final_km", "0")
+st.write("")
 
-        if is_connected is True and sheet_cache and sheet_data:
-            try:
-                cache_rows = sheet_cache.get_all_values()
-                if len(cache_rows) > 1:
-                    row = cache_rows[1] 
-                    while len(row) < 13:
-                        row.append("")
-                    
-                    vn_now = datetime.utcnow() + timedelta(hours=7)
-                    
-                    # Giữ nguyên giờ Kết Thúc nếu đã có, nếu chưa thì lấy hiện tại
-                    if not row[3]:
-                        row[3] = vn_now.strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # 1. TỔNG THỜI GIAN
-                    try:
-                        start_obj = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
-                        end_obj = datetime.strptime(row[3], "%Y-%m-%d %H:%M:%S")
-                        delta_sec = int((end_obj - start_obj).total_seconds())
-                        h, rem = divmod(delta_sec, 3600)
-                        m, s = divmod(rem, 60)
-                        row[4] = f"{h:02d}:{m:02d}:{s:02d}"
-                    except:
-                        row[4] = query_params.get("final_time", "00:00:00")
-                    
-                    # 2. SỐ KM THỰC TẾ & 3. TỔNG TIỀN = SỐ KM * ĐƠN GIÁ
-                    try:
-                        km_float = float(final_km)
-                        calc_money = int(km_float * UNIT_PRICE)
-                    except:
-                        calc_money = 0
-                    
-                    row[7] = str(calc_money)        # SỐ TIỀN THU
-                    row[10] = str(final_km)         # SỐ KM
-                    row[11] = str(calc_money)       # TỔNG TIỀN
-                    row[12] = "Đã thanh toán"       # TRẠNG THÁI
-                    
-                    # Lưu 1 dòng hoàn chỉnh 13 cột chuẩn xác sang DATA
-                    sheet_data.append_row(row) 
-                    
-                    # Dọn dẹp CACHE chuẩn bị cho cuốc mới
-                    sheet_cache.clear() 
-                    sheet_cache.append_row([
-                        "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
-                        "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
-                        "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
-                    ])
-            except Exception as e:
-                pass
+def reset_trip():
+    st.session_state.trip_active = False
+    st.session_state.trip_started_at = None
+    st.session_state.trip_ended_at = None
+    st.session_state.trip_total_m = 0.0
+    st.session_state.trip_status = "Chưa bắt đầu"
+    st.session_state.show_balloons = False
 
-        # Chuyển sang màn hình hoàn tất
-        st.session_state.mock_state = "paid"
-        st.query_params.clear()
+# ============================================================
+# TRẠNG THÁI 1: SẴN SÀNG NHẬN KHÁCH
+# ============================================================
+if not st.session_state.trip_active and not st.session_state.trip_ended_at:
+    st.markdown(
+        """
+        <div class="section-card">
+            <div class="section-title">🚦 Sẵn sàng nhận khách</div>
+            <div class="section-desc">Nhập thông tin khách hàng (nếu có) và bấm bắt đầu để kích hoạt định vị GPS thời gian thực.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    cust_input = st.text_input("Thông tin khách hàng (SĐT / Tên / Ghi chú):", placeholder="Ví dụ: Anh Nam - 0912345678")
+
+    if st.button("🟢 BẮT ĐẦU CUỐC XE", use_container_width=True):
+        reset_trip()
+        st.session_state.trip_active = True
+        st.session_state.trip_started_at = time.time()
+        st.session_state.customer_info = cust_input.strip() if cust_input.strip() else "Khách vãng lai"
+        st.session_state.trip_id = f"C4567_{int(st.session_state.trip_started_at)}"
+        
+        start_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.session_state.trip_started_at))
+        
+        # MAPPING CHÍNH XÁC KHI TẠO CACHE MỚI
+        cache_row = [
+            st.session_state.trip_id,           # 1. STT
+            start_time_str,                     # 2. THỜI GIAN BẮT ĐẦU
+            "Đang di chuyển...",                # 3. THỜI GIAN KẾT THÚC
+            st.session_state.customer_info,     # 4. KHÁCH HÀNG
+            "",                                 # 5. SĐT KH
+            0,                                  # 6. CƯỚC TẠM TÍNH
+            st.session_state['user_name'],      # 7. TÀI XẾ
+            0,                                  # 8. TỔNG KM
+            0,                                  # 9. THÀNH TIỀN
+            "BẮT ĐẦU CUỐC"                      # 10. GHI CHÚ
+        ]
+        append_row_to_sheet("CACHE_4567", cache_row)
         st.rerun()
 
-    gps_component_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: sans-serif; background: transparent; margin: 0; padding: 0; }}
-        .app-card {{ background: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; }}
-        .metric-row {{ font-size: 18px; font-weight: bold; color: #334155; padding: 12px 0; border-bottom: 2px dashed #f1f5f9; display: flex; justify-content: space-between; align-items: center; }}
-        .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
-        .btn-end {{ background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
-        .btn-pay {{ background: #059669; color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }}
-        .btn-action:hover {{ opacity: 0.9; }}
-        .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
-        .customer-tag {{ font-size: 14px; color: #0284c7; background: #f0f9ff; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; border: 1px solid #bae6fd; }}
-    </style>
-    </head>
-    <body>
-    <div class="app-card">
-        <!-- GIAO DIỆN ĐANG CHẠY -->
-        <div id="running-view">
-            <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">⏱️ ĐANG TRONG CUỐC XE...</div>
-            <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
-            <div id="status" class="gps-status">🛰️ Đang kết nối tín hiệu vệ tinh...</div>
-            
-            <div class="metric-row">
-                <span>SỐ KM:</span>
-                <span id="km-val" style="color:#0284c7;">0.00 km</span>
-            </div>
-            <div class="metric-row">
-                <span>THỜI GIAN ĐI:</span>
-                <span id="time-val" style="color:#059669;">00:00:00</span>
-            </div>
-            <div class="metric-row">
-                <span>ĐƠN GIÁ:</span>
-                <span>{UNIT_PRICE:,} đ/km</span>
-            </div>
-            <div class="metric-row" style="font-size:21px; color:#dc2626; border-bottom: none;">
-                <span>THÀNH TIỀN:</span>
-                <span id="money-val" style="font-weight:900;">0 đ</span>
-            </div>
-
-            <button class="btn-action btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
+# ============================================================
+# TRẠNG THÁI 2: HÀNH TRÌNH ĐANG DIỄN RA
+# ============================================================
+elif st.session_state.trip_active:
+    st.markdown(
+        f"""
+        <div class="section-card" style="border-color: #00A86B;">
+            <div class="section-title" style="color: #00A86B;">🟢 Hành trình đang diễn ra</div>
+            <div class="section-desc" style="margin-bottom:0;">Khách hàng: <b>{st.session_state.get('customer_info', 'Khách vãng lai')}</b><br>Đang đồng bộ Cache thời gian thực. Bấm Kết thúc bên dưới để chốt cuốc.</div>
         </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        <!-- GIAO DIỆN THANH TOÁN -->
-        <div id="payment-view" style="display: none;">
-            <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:6px; text-align:center;">💳 XÁC NHẬN THANH TOÁN</div>
-            <div class="customer-tag">Khách: {st.session_state.customer_name} ({st.session_state.customer_phone})</div>
-            <div style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 12px; font-weight: bold; background: #f1f5f9; padding: 8px; border-radius: 8px;">📋 Thông tin đã chốt. Mời khách thanh toán!</div>
-            
-            <div class="metric-row">
-                <span>SỐ KM:</span>
-                <span id="final-km-val" style="color:#0284c7;">0.00 km</span>
-            </div>
-            <div class="metric-row">
-                <span>THỜI GIAN ĐI:</span>
-                <span id="final-time-val" style="color:#059669;">00:00:00</span>
-            </div>
-            <div class="metric-row">
-                <span>ĐƠN GIÁ:</span>
-                <span>{UNIT_PRICE:,} đ/km</span>
-            </div>
-            <div class="metric-row" style="font-size:21px; color:#059669; border-bottom: none;">
-                <span>THÀNH TIỀN:</span>
-                <span id="final-money-val" style="font-weight:900;">0 đ</span>
-            </div>
+    current_start_ts = st.session_state.get('trip_started_at', time.time())
+    cust_param = urllib.parse.quote(st.session_state.get('customer_info', 'Khách vãng lai'))
 
-            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ XÁC NHẬN THANH TOÁN</button>
+    html_live_tracker = f"""
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 16px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center;">
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 16px; margin-bottom: 14px;">
+            <div style="color: #166534; font-size: 12px; font-weight: 700; text-transform: uppercase;">Cước phí tạm tính</div>
+            <div id="price" style="color: #0f172a; font-size: 34px; font-weight: 900; margin: 4px 0;">0 VNĐ</div>
+            <div style="color: #475569; font-size: 12px;"><span id="km">0.00</span> km • {DONG_GIA:,.0f} đ/km</div>
         </div>
+        
+        <button id="btnStop" onclick="stopTripNow()" style="width: 100%; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+            💳 KẾT THÚC & ĐẨY QUA DATA NGAY
+        </button>
+        <div id="debug_acc" style="font-size: 11px; color: #94a3b8; margin-top: 10px;">GPS: Đang theo dõi & Cache Active...</div>
     </div>
 
     <script>
-        let watchId = null;
-        let prevLat = null;
-        let prevLon = null;
-        let totalDist = 0; 
-        let unitPrice = {UNIT_PRICE};
-        let seconds = 0;
+    localStorage.setItem("xeom_trip_active", "true");
+    localStorage.setItem("xeom_start_time", "{current_start_ts}");
+
+    function calcCrow(lat1, lon1, lat2, lon2) {{
+        var R = 6371000;
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }}
+
+    let lastLat = null, lastLon = null;
+    let totalMeters = parseFloat(localStorage.getItem("xeom_total_meters") || "0.0");
+    const dongGia = {DONG_GIA};
+
+    if (totalMeters > 0) {{
+        let km = totalMeters / 1000.0;
+        document.getElementById("km").innerText = km.toFixed(2);
+        document.getElementById("price").innerText = Math.round(km * dongGia).toLocaleString('vi-VN') + " VNĐ";
+    }}
+
+    if ("geolocation" in navigator) {{
+        navigator.geolocation.watchPosition(
+            function(pos) {{
+                let lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy;
+                document.getElementById("debug_acc").innerText = "Sai số GPS: ±" + acc.toFixed(1) + " m | Cache OK";
+                if (acc > {GPS_ACCURACY_MAX_M}) return;
+                if (lastLat === null) {{ lastLat = lat; lastLon = lon; return; }}
+                let d = calcCrow(lastLat, lastLon, lat, lon);
+                if (d >= {MIN_MOVE_M} && d < 120) {{
+                    totalMeters += d;
+                    lastLat = lat; lastLon = lon;
+                    localStorage.setItem("xeom_total_meters", totalMeters);
+                    let km = totalMeters / 1000.0;
+                    document.getElementById("km").innerText = km.toFixed(2);
+                    document.getElementById("price").innerText = Math.round(km * dongGia).toLocaleString('vi-VN') + " VNĐ";
+                }}
+            }},
+            err => {{ document.getElementById("debug_acc").innerText = "Lỗi GPS: " + err.message; }},
+            {{ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }}
+        );
+    }}
+
+    function stopTripNow() {{
+        let btn = document.getElementById("btnStop");
+        btn.innerText = "⏳ ĐANG XỬ LÝ DỮ LIỆU...";
+        btn.style.background = "#64748b";
+        btn.disabled = true;
+
+        let finalDist = localStorage.getItem("xeom_total_meters") || "0";
+        localStorage.removeItem("xeom_total_meters");
+        localStorage.removeItem("xeom_trip_active");
+        localStorage.removeItem("xeom_start_time");
         
-        let timerInterval = setInterval(() => {{
-            seconds++;
-            let h = String(Math.floor(seconds / 3600)).padStart(2, '0');
-            let m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-            let s = String(seconds % 60).padStart(2, '0');
-            document.getElementById('time-val').innerText = h + ":" + m + ":" + s;
-        }}, 1000);
-
-        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {{
-            let R = 6371; 
-            let dLat = deg2rad(lat2 - lat1);
-            let dLon = deg2rad(lon2 - lon1);
-            let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-                    Math.sin(dLon/2) * Math.sin(dLon/2); 
-            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            return R * c;
-        }}
-
-        function deg2rad(deg) {{ return deg * (Math.PI / 180); }}
-
-        if (navigator.geolocation) {{
-            watchId = navigator.geolocation.watchPosition(
-                (position) => {{
-                    let lat = position.coords.latitude;
-                    let lon = position.coords.longitude;
-                    let accuracy = position.coords.accuracy;
-
-                    if (prevLat !== null && prevLon !== null) {{
-                        let dist = getDistanceFromLatLonInKm(prevLat, prevLon, lat, lon);
-                        if (dist > 0.003 && accuracy < 50) {{ totalDist += dist; }}
-                    }}
-                    prevLat = lat; prevLon = lon;
-
-                    let money = Math.round(totalDist * unitPrice);
-                    document.getElementById('km-val').innerText = totalDist.toFixed(2) + " km";
-                    document.getElementById('money-val').innerText = money.toLocaleString('vi-VN') + " đ";
-                }},
-                (error) => {{ document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị!"; }},
-                {{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }}
-            );
-        }}
-
-        function endTrip() {{
-            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-            clearInterval(timerInterval);
-
-            let finalKmStr = totalDist.toFixed(2);
-            let finalTimeStr = document.getElementById('time-val').innerText;
-            let finalMoneyNum = Math.round(totalDist * unitPrice);
-
-            document.getElementById('final-km-val').innerText = finalKmStr + " km";
-            document.getElementById('final-time-val').innerText = finalTimeStr;
-            document.getElementById('final-money-val').innerText = finalMoneyNum.toLocaleString('vi-VN') + " đ";
-
-            document.getElementById('running-view').style.display = 'none';
-            document.getElementById('payment-view').style.display = 'block';
-
-            let urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('action', 'end');
-            urlParams.set('km', finalKmStr);
-            urlParams.set('time', finalTimeStr);
-            fetch(window.location.pathname + '?' + urlParams.toString()).catch(() => {{}});
-        }}
-
-        function confirmPayment() {{
-            let finalKmStr = document.getElementById('final-km-val').innerText.replace(' km', '').trim();
-            let finalTimeStr = document.getElementById('final-time-val').innerText.trim();
-            
-            let urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('action', 'pay');
-            urlParams.set('final_km', finalKmStr);
-            urlParams.set('final_time', finalTimeStr);
-            window.location.search = urlParams.toString();
-        }}
+        let targetUrl = window.top.location.href.split('?')[0] + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cust={cust_param}";
+        window.top.location.href = targetUrl;
+    }}
     </script>
-    </body>
-    </html>
     """
-    components.html(gps_component_code, height=450)
+    components.html(html_live_tracker, height=220)
 
-# -------------------------------------------------------------------------
-# 3. MÀN HÌNH HOÀN TẤT & NHẬN CUỐC XE MỚI
-# -------------------------------------------------------------------------
-elif st.session_state.mock_state == "paid":
-    st.markdown("<div class='app-card' style='text-align:center;'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color:#059669; margin-bottom:8px;'>✅ THANH TOÁN THÀNH CÔNG!</h3>", unsafe_allow_html=True)
-    st.write("Dữ liệu cuốc xe đã được lưu chính xác vào sheet **DATA** để theo dõi doanh số, đồng thời bộ nhớ đệm **CACHE** đã được làm sạch.")
-    st.write("")
+# ============================================================
+# TRẠNG THÁI 3: HOÀN THÀNH CUỐC XE
+# ============================================================
+elif not st.session_state.trip_active and st.session_state.trip_ended_at:
     
-    if st.button("🆕 NHẬN CUỐC XE MỚI", type="primary", use_container_width=True):
-        st.session_state.mock_state = "home"
-        st.session_state.customer_name = ""
-        st.session_state.customer_phone = ""
-        st.session_state.ma_cuoc_xe = ""
-        st.session_state.start_time_str = ""
+    # 🎈 BẮN BÓNG BAY MỘT LẦN DUY NHẤT SAU KHI VỪA KẾT THÚC CHUYẾN!
+    if st.session_state.get("show_balloons", False):
+        st.balloons()
+        st.session_state["show_balloons"] = False
+
+    km = st.session_state.trip_total_m / 1000.0
+    fare = km * DONG_GIA
+
+    st.markdown(
+        f"""
+        <div class="section-card" style="border-color: #00A86B;">
+            <div class="section-title" style="color: #00A86B;">🎉 CUỐC XE ĐÃ CHỐT SỔ TỚI DATA</div>
+            <div class="section-desc">Dữ liệu chuyến đi đã được chuyển hẳn sang tab <b>DATA_4567</b> và bản nháp Cache đã được xoá sạch sẽ!</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("📏 Quãng đường", f"{km:.2f} km")
+    with c2: st.metric("💰 Đơn giá", f"{DONG_GIA:,.0f}đ")
+    with c3: st.metric("💵 Tổng tiền", f"{fare:,.0f} VNĐ")
+
+    st.info(f"👤 **Khách hàng:** {st.session_state.get('customer_info', 'Khách vãng lai')} | 🛵 **Tài xế:** {st.session_state['user_name']}")
+    st.success("✅ Đã cập nhật thành công dữ liệu vào hệ thống lưu trữ dài hạn!")
+    
+    st.write("")
+    if st.button("♻️ BẮT ĐẦU CUỐC MỚI", use_container_width=True):
+        reset_trip()
         st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
+# KHU VỰC XEM BÁO CÁO THỜI GIAN THỰC TỪ GOOGLE SHEETS
 # ============================================================
-st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
-st.markdown('<a href="https://zalo.me/0978666620" class="btn-zalo-single" target="_blank">💬 LIÊN HỆ HỖ TRỢ ZALO</a>', unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
-st.markdown(
-    "<div style='background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px; text-align: center; margin-top: 15px;'>"
-    "<span style='color: #047857; font-weight: bold; font-size: 15px;'>🌟 Chúc ní một ngày chạy xe bội thu, khách đông nườm nượp!</span></div>",
-    unsafe_allow_html=True,
-)
+st.markdown("---")
+with st.expander("📊 XEM BÁO CÁO THỜI GIAN THỰC (TỪ GOOGLE SHEETS)", expanded=False):
+    st.info("Dữ liệu được tải trực tiếp từ Tab `DATA_4567` và `CACHE_4567` trên Trang tính.")
+    
+    tab_rep1, tab_rep2 = st.tabs(["📦 Dữ liệu DATA_4567", "⚡ Bộ nhớ CACHE_4567"])
+    
+    with tab_rep1:
+        _, data_records = get_worksheet_data("DATA_4567")
+        if data_records:
+            df_data = pd.DataFrame(data_records)
+            st.dataframe(df_data, use_container_width=True)
+        else:
+            st.warning("Chưa có dữ liệu trong bảng `DATA_4567`.")
+            
+    with tab_rep2:
+        _, cache_records = get_worksheet_data("CACHE_4567")
+        if cache_records:
+            df_cache = pd.DataFrame(cache_records)
+            st.dataframe(df_cache, use_container_width=True)
+        else:
+            st.success("Hiện CACHE đang trống (đã được dọn dẹp).")
+
+st.write("")
+if st.button("🔒 ĐĂNG XUẤT TÀI KHOẢN", type="secondary", use_container_width=True):
+    st.session_state["logged_in"] = False
+    st.session_state["user_phone"] = ""
+    st.session_state["user_name"] = ""
+    st.query_params.clear()
+    st.rerun()
