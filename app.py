@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="4567 Xe Ôm - GPS Thực Tế", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm - Vòng Lặp Vô Hạn", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -51,14 +51,6 @@ st.markdown(
     .stTextInput input:focus {
         border-color: #059669 !important;
         box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
-    }
-    
-    .metric-row {
-        font-size: 18px; 
-        font-weight: bold; 
-        color: #334155; 
-        padding: 12px 0; 
-        border-bottom: 2px dashed #f1f5f9;
     }
     
     .btn-zalo-single { 
@@ -134,10 +126,9 @@ if st.session_state.mock_state == "home":
   st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
-# 2. MÀN HÌNH ĐANG CHẠY - THEO DÕI VỊ TRÍ GPS THỰC TẾ
+# 2. MÀN HÌNH ĐANG CHẠY & THANH TOÁN (TÍCH HỢP GPS & VÒNG LẶP)
 # -------------------------------------------------------------------------
 elif st.session_state.mock_state == "running":
-  # Nhúng mã HTML/JS thông minh để truy xuất GPS trực tiếp từ trình duyệt điện thoại
   gps_component_code = f"""
     <!DOCTYPE html>
     <html>
@@ -147,45 +138,74 @@ elif st.session_state.mock_state == "running":
         body {{ font-family: sans-serif; background: transparent; margin: 0; padding: 0; }}
         .app-card {{ background: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; }}
         .metric-row {{ font-size: 18px; font-weight: bold; color: #334155; padding: 12px 0; border-bottom: 2px dashed #f1f5f9; display: flex; justify-content: space-between; align-items: center; }}
-        .btn-end {{ background: #dc2626; color: white; border: none; width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
-        .btn-end:hover {{ opacity: 0.9; }}
+        .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
+        .btn-end {{ background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
+        .btn-pay {{ background: #059669; color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }}
+        .btn-action:hover {{ opacity: 0.9; }}
         .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
     </style>
     </head>
     <body>
     <div class="app-card">
-        <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;">⏱️ ĐANG ĐO KHOẢNG CÁCH GPS...</div>
-        <div id="status" class="gps-status">🛰️ Đang kết nối tín hiệu vệ tinh...</div>
-        
-        <div class="metric-row">
-            <span>SỐ KM:</span>
-            <span id="km-val" style="color:#0284c7;">0.00 km</span>
-        </div>
-        <div class="metric-row">
-            <span>THỜI GIAN ĐI:</span>
-            <span id="time-val" style="color:#059669;">00:00:00</span>
-        </div>
-        <div class="metric-row">
-            <span>ĐƠN GIÁ:</span>
-            <span>{UNIT_PRICE:,} đ/km</span>
-        </div>
-        <div class="metric-row" style="font-size:21px; color:#dc2626; border-bottom: none;">
-            <span>THÀNH TIỀN:</span>
-            <span id="money-val" style="font-weight:900;">0 đ</span>
+        <!-- GIAO DIỆN ĐANG CHẠY -->
+        <div id="running-view">
+            <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;">⏱️ ĐANG TRONG CUỐC XE...</div>
+            <div id="status" class="gps-status">🛰️ Đang kết nối tín hiệu vệ tinh...</div>
+            
+            <div class="metric-row">
+                <span>SỐ KM:</span>
+                <span id="km-val" style="color:#0284c7;">0.00 km</span>
+            </div>
+            <div class="metric-row">
+                <span>THỜI GIAN ĐI:</span>
+                <span id="time-val" style="color:#059669;">00:00:00</span>
+            </div>
+            <div class="metric-row">
+                <span>ĐƠN GIÁ:</span>
+                <span>{UNIT_PRICE:,} đ/km</span>
+            </div>
+            <div class="metric-row" style="font-size:21px; color:#dc2626; border-bottom: none;">
+                <span>THÀNH TIỀN:</span>
+                <span id="money-val" style="font-weight:900;">0 đ</span>
+            </div>
+
+            <button class="btn-action btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
         </div>
 
-        <button class="btn-end" onclick="endTrip()">🛑 KẾT THÚC CHUYẾN ĐI</button>
+        <!-- GIAO DIỆN THANH TOÁN (ĐỨNG YÊN ĐỂ MINH BẠCH) -->
+        <div id="payment-view" style="display: none;">
+            <div style="font-size:18px; font-weight:900; color:#059669; margin-bottom:10px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;">💳 XÁC NHẬN THANH TOÁN</div>
+            <div style="font-size: 13px; color: #64748b; text-align: center; margin-bottom: 12px; font-weight: bold; background: #f1f5f9; padding: 8px; border-radius: 8px;">📋 Thông tin đã chốt. Mời khách thanh toán!</div>
+            
+            <div class="metric-row">
+                <span>SỐ KM:</span>
+                <span id="final-km-val" style="color:#0284c7;">0.00 km</span>
+            </div>
+            <div class="metric-row">
+                <span>THỜI GIAN ĐI:</span>
+                <span id="final-time-val" style="color:#059669;">00:00:00</span>
+            </div>
+            <div class="metric-row">
+                <span>ĐƠN GIÁ:</span>
+                <span>{UNIT_PRICE:,} đ/km</span>
+            </div>
+            <div class="metric-row" style="font-size:21px; color:#059669; border-bottom: none;">
+                <span>THÀNH TIỀN:</span>
+                <span id="final-money-val" style="font-weight:900;">0 đ</span>
+            </div>
+
+            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ THANH TOÁN & NHẬN CUỐC MỚI</button>
+        </div>
     </div>
 
     <script>
         let watchId = null;
         let prevLat = null;
         let prevLon = null;
-        let totalDist = 0; // km
+        let totalDist = 0; 
         let unitPrice = {UNIT_PRICE};
         let seconds = 0;
         
-        // Đồng hồ đếm thời gian chuyến đi
         let timerInterval = setInterval(() => {{
             seconds++;
             let h = String(Math.floor(seconds / 3600)).padStart(2, '0');
@@ -194,7 +214,6 @@ elif st.session_state.mock_state == "running":
             document.getElementById('time-val').innerText = h + ":" + m + ":" + s;
         }}, 1000);
 
-        // Công thức Haversine tính khoảng cách giữa 2 tọa độ GPS (km)
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {{
             let R = 6371; 
             let dLat = deg2rad(lat2 - lat1);
@@ -211,9 +230,7 @@ elif st.session_state.mock_state == "running":
             return deg * (Math.PI / 180);
         }}
 
-        // Kích hoạt định vị GPS thực tế trên điện thoại
         if (navigator.geolocation) {{
-            document.getElementById('status').innerText = "🛰️ GPS đang hoạt động chính xác!";
             watchId = navigator.geolocation.watchPosition(
                 (position) => {{
                     let lat = position.coords.latitude;
@@ -222,7 +239,6 @@ elif st.session_state.mock_state == "running":
 
                     if (prevLat !== null && prevLon !== null) {{
                         let dist = getDistanceFromLatLonInKm(prevLat, prevLon, lat, lon);
-                        // Lọc nhiễu: chỉ cộng dồn khi dịch chuyển > 3 mét và độ chính xác GPS tốt (<50m)
                         if (dist > 0.003 && accuracy < 50) {{
                             totalDist += dist;
                         }}
@@ -235,26 +251,31 @@ elif st.session_state.mock_state == "running":
                     document.getElementById('money-val').innerText = money.toLocaleString('vi-VN') + " đ";
                 }},
                 (error) => {{
-                    document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị trên điện thoại!";
+                    document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị!";
                 }},
                 {{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }}
             );
-        }} else {{
-            document.getElementById('status').innerText = "❌ Trình duyệt không hỗ trợ GPS!";
         }}
 
+        // Khi bấm KẾT THÚC CHUYẾN ĐI -> Dừng GPS, đóng băng số liệu, mở màn hình thanh toán
         function endTrip() {{
             if (watchId !== null) {{
                 navigator.geolocation.clearWatch(watchId);
             }}
             clearInterval(timerInterval);
-            
-            // Lưu thông tin vào sessionStorage để trang chính đọc lại khi tải lại
-            sessionStorage.setItem('final_km', totalDist.toFixed(2));
-            sessionStorage.setItem('final_time', document.getElementById('time-val').innerText);
-            sessionStorage.setItem('final_money', Math.round(totalDist * unitPrice));
-            
-            // Tải lại trang Streamlit để chuyển sang màn hình kết quả
+
+            // Chốt các con số đứng yên
+            document.getElementById('final-km-val').innerText = totalDist.toFixed(2) + " km";
+            document.getElementById('final-time-val').innerText = document.getElementById('time-val').innerText;
+            document.getElementById('final-money-val').innerText = Math.round(totalDist * unitPrice).toLocaleString('vi-VN') + " đ";
+
+            // Ẩn màn hình chạy, hiện màn hình thanh toán
+            document.getElementById('running-view').style.display = 'none';
+            document.getElementById('payment-view').style.display = 'block';
+        }}
+
+        // Khi bấm THANH TOÁN -> Làm mới app để quay về màn hình BẮT ĐẦU (Vòng lặp vô hạn)
+        function confirmPayment() {{
             window.location.reload();
         }}
     </script>
