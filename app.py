@@ -98,7 +98,7 @@ st.markdown(
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
-  st.markdown("<div class='app-card'>", unsafe_allow_html=True)
+  #st.markdown("<div class='app-card'>", unsafe_allow_html=True)
   st.markdown(
       "<div style='font-size:18px; font-weight:900; color:#059669;"
       " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
