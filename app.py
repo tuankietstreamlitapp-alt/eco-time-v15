@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="4567 Xe Ôm - Google Sheets Cache & Data",
+    page_title="4567 Xe Ôm - Google Sheets Data",
     page_icon="🛵",
     layout="centered",
 )
@@ -21,11 +21,8 @@ def init_google_sheets():
             "https://www.googleapis.com/auth/drive",
         ]
         creds_dict = dict(st.secrets["gcp_service_account"])
-        
-        # Ép cứng trường type để tránh bị nhận diện nhầm thành None
         creds_dict["type"] = "service_account"
 
-        # --- BỘ LỌC TỰ ĐỘNG SỬA LỖI BASE64 KHI COPY TRÊN ĐIỆN THOẠI ---
         raw_key = creds_dict.get("private_key", "")
         if "-----BEGIN PRIVATE KEY-----" in raw_key:
             key_body = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
@@ -56,59 +53,13 @@ st.markdown(
     """
     <style>
     .stApp { background-color: #f1f5f9; }
-    
-    .block-container { 
-        max-width: 500px; 
-        padding-top: 1rem !important; 
-        padding-bottom: 2rem; 
-        padding-left: 1rem; 
-        padding-right: 1rem; 
-    }
-    
+    .block-container { max-width: 500px; padding-top: 1rem !important; padding-bottom: 2rem; padding-left: 1rem; padding-right: 1rem; }
     header { visibility: hidden; }
-    
-    div.stButton > button { 
-        border-radius: 14px !important; 
-        font-weight: 900 !important; 
-        font-size: 20px !important; 
-        min-height: 55px !important; 
-    }
-    
-    .app-card { 
-        background: #ffffff; 
-        border-radius: 18px; 
-        padding: 20px; 
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); 
-        margin-top: 10px; 
-        margin-bottom: 15px; 
-        border: 1px solid #e2e8f0; 
-    }
-    
-    .stTextInput input {
-        background-color: #f8fafc !important;
-        border: 1.5px solid #cbd5e1 !important;
-        border-radius: 12px !important;
-        font-size: 16px !important;
-        color: #1e293b !important;
-        padding: 10px 14px !important;
-    }
-    .stTextInput input:focus {
-        border-color: #059669 !important;
-        box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
-    }
-    
-    .btn-zalo-single { 
-        background: #0284c7; 
-        color: white !important; 
-        padding: 14px; 
-        border-radius: 14px; 
-        text-align: center; 
-        font-weight: bold; 
-        font-size: 18px; 
-        display: block; 
-        text-decoration: none; 
-        box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2);
-    }
+    div.stButton > button { border-radius: 14px !important; font-weight: 900 !important; font-size: 20px !important; min-height: 55px !important; }
+    .app-card { background: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); margin-top: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
+    .stTextInput input { background-color: #f8fafc !important; border: 1.5px solid #cbd5e1 !important; border-radius: 12px !important; font-size: 16px !important; color: #1e293b !important; padding: 10px 14px !important; }
+    .stTextInput input:focus { border-color: #059669 !important; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important; }
+    .btn-zalo-single { background: #0284c7; color: white !important; padding: 14px; border-radius: 14px; text-align: center; font-weight: bold; font-size: 18px; display: block; text-decoration: none; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2); }
     .btn-zalo-single:hover { opacity: 0.9; color: white !important; }
     </style>
     """,
@@ -130,12 +81,8 @@ if "start_time_str" not in st.session_state:
 UNIT_PRICE = 5000  # 5,000 đ/km
 DRIVER_NAME = "Nguyễn Văn A"
 
-# Tự động khôi phục chuyến đang chạy nếu lỡ tay tải lại trang
-if (
-    st.session_state.mock_state == "home"
-    and is_connected is True
-    and sheet_cache
-):
+# Khôi phục trạng thái nếu lỡ tải lại trang
+if st.session_state.mock_state == "home" and is_connected is True and sheet_cache:
     try:
         cache_rows = sheet_cache.get_all_values()
         if len(cache_rows) > 1:
@@ -150,19 +97,10 @@ if (
         pass
 
 # TIÊU ĐỀ APP
-st.markdown(
-    "<h1 style='text-align:center; color:#059669; margin-bottom:0px;"
-    " font-size:28px;'>🛵 4567 XE ÔM</h1>",
-    unsafe_allow_html=True,
-)
+st.markdown("<h1 style='text-align:center; color:#059669; margin-bottom:0px; font-size:28px;'>🛵 4567 XE ÔM</h1>", unsafe_allow_html=True)
 
 if is_connected is True:
-    st.markdown(
-        "<div style='text-align:center; font-size:14px; color:#64748b;"
-        " margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span"
-        " style='color:#10b981;'>● Đã kết nối Google Sheets</span></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div style='text-align:center; font-size:14px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Đã kết nối Google Sheets</span></div>", unsafe_allow_html=True)
 else:
     st.error(f"⚠️ Lỗi kết nối Google Sheets chi tiết: {is_connected}")
 
@@ -171,59 +109,40 @@ else:
 # -------------------------------------------------------------------------
 if st.session_state.mock_state == "home":
     st.markdown("<div class='app-card'>", unsafe_allow_html=True)
-    st.markdown(
-        "<div style='font-size:18px; font-weight:900; color:#059669;"
-        " margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid"
-        " #f1f5f9; text-align:center;'>🚖 TẠO CUỐC XE MỚI</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div style='font-size:18px; font-weight:900; color:#059669; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f1f5f9; text-align:center;'>🚖 TẠO CUỐC XE MỚI</div>", unsafe_allow_html=True)
 
-    c_name = st.text_input(
-        "TÊN KHÁCH HÀNG:",
-        placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)",
-        key="input_name",
-    )
-    c_phone = st.text_input(
-        "SỐ ĐIỆN THOẠI:",
-        placeholder="Ví dụ: 0909xxxxxx",
-        key="input_phone",
-    )
+    c_name = st.text_input("TÊN KHÁCH HÀNG:", placeholder="Ví dụ: Anh Nam (Bỏ trống nếu vãng lai)", key="input_name")
+    c_phone = st.text_input("SỐ ĐIỆN THOẠI:", placeholder="Ví dụ: 0909xxxxxx", key="input_phone")
 
     st.write("")
     if st.button("🟢 BẮT ĐẦU CHẠY", type="primary", use_container_width=True):
-        st.session_state.customer_name = (
-            c_name.strip() if c_name.strip() else "Khách vãng lai"
-        )
-        st.session_state.customer_phone = (
-            c_phone.strip() if c_phone.strip() else "Không có"
-        )
+        st.session_state.customer_name = c_name.strip() if c_name.strip() else "Khách vãng lai"
+        st.session_state.customer_phone = c_phone.strip() if c_phone.strip() else "Không có"
 
-        # Sinh mã cuốc xe theo giờ Việt Nam (UTC+7)
         vn_now = datetime.utcnow() + timedelta(hours=7)
         st.session_state.ma_cuoc_xe = f"CX_{vn_now.strftime('%Y%m%d_%H%M%S')}"
         st.session_state.start_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Đẩy dữ liệu khởi tạo vào sheet CACHE
         if is_connected is True and sheet_cache:
             try:
                 new_row = [
-                    "1",                                 # STT
-                    st.session_state.ma_cuoc_xe,         # MÃ CUỐC XE
-                    st.session_state.start_time_str,     # THỜI GIAN BẮT ĐẦU
-                    "",                                  # THỜI GIAN KẾT THÚC
-                    "",                                  # TỔNG THỜI GIAN
-                    st.session_state.customer_name,      # TÊN KHÁCH HÀNG
-                    st.session_state.customer_phone,     # SĐT KHÁCH HÀNG
-                    "0",                                 # SỐ TIỀN THU
-                    DRIVER_NAME,                         # TÊN TÀI XẾ
-                    str(UNIT_PRICE),                     # ĐƠN GIÁ
-                    "0",                                 # SỐ KM
-                    "0",                                 # TỔNG TIỀN
-                    "Đang chạy",                         # TRẠNG THÁI
+                    "1",                                 
+                    st.session_state.ma_cuoc_xe,         
+                    st.session_state.start_time_str,     
+                    "",                                  
+                    "",                                  
+                    st.session_state.customer_name,      
+                    st.session_state.customer_phone,     
+                    "0",                                 
+                    DRIVER_NAME,                         
+                    str(UNIT_PRICE),                     
+                    "0",                                 
+                    "0",                                 
+                    "Đang chạy",                         
                 ]
                 sheet_cache.append_row(new_row)
             except Exception as e:
-                st.error(f"Lỗi ghi Cache: {e}")
+                pass
 
         st.session_state.mock_state = "running"
         st.rerun()
@@ -236,43 +155,97 @@ elif st.session_state.mock_state == "running":
     query_params = st.query_params
     action_trigger = query_params.get("action", None)
 
+    # KHI BẤM "KẾT THÚC CHUYẾN ĐI"
     if action_trigger == "end":
         final_km = query_params.get("km", "0")
-        final_time = query_params.get("time", "00:00:00")
-        final_money = query_params.get("money", "0")
-
+        
         if is_connected is True and sheet_cache:
             try:
-                cell = sheet_cache.find(st.session_state.ma_cuoc_xe)
-                if cell:
-                    row_idx = cell.row
-                    vn_now = datetime.utcnow() + timedelta(hours=7)
-                    end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # Cập nhật thông tin chốt chuyến vào Cache
-                    sheet_cache.update_cell(row_idx, 4, end_time_str)     # Cột 4: THỜI GIAN KẾT THÚC
-                    sheet_cache.update_cell(row_idx, 5, final_time)       # Cột 5: TỔNG THỜI GIAN
-                    sheet_cache.update_cell(row_idx, 8, final_money)      # Cột 8: SỐ TIỀN THU
-                    sheet_cache.update_cell(row_idx, 11, final_km)        # Cột 11: SỐ KM
-                    sheet_cache.update_cell(row_idx, 12, final_money)     # Cột 12: TỔNG TIỀN
-                    sheet_cache.update_cell(row_idx, 13, "Chờ thanh toán")# Cột 13: TRẠNG THÁI
+                cache_rows = sheet_cache.get_all_values()
+                for i, row in enumerate(cache_rows):
+                    if len(row) > 1 and row[1] == st.session_state.ma_cuoc_xe:
+                        row_idx = i + 1
+                        while len(row) < 13:
+                            row.append("")
+                        
+                        vn_now = datetime.utcnow() + timedelta(hours=7)
+                        end_time_str = vn_now.strftime("%Y-%m-%d %H:%M:%S")
+                        row[3] = end_time_str
+                        
+                        # 1. TỔNG THỜI GIAN = THỜI GIAN KẾT THÚC - BẮT ĐẦU
+                        try:
+                            start_obj = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
+                            delta_sec = int((vn_now - start_obj).total_seconds())
+                            h, rem = divmod(delta_sec, 3600)
+                            m, s = divmod(rem, 60)
+                            row[4] = f"{h:02d}:{m:02d}:{s:02d}"
+                        except:
+                            row[4] = query_params.get("time", "00:00:00")
+                        
+                        # 2. SỐ KM THỰC TẾ & 3. TỔNG TIỀN = SỐ KM * ĐƠN GIÁ
+                        try:
+                            km_float = float(final_km)
+                            calc_money = int(km_float * UNIT_PRICE)
+                        except:
+                            calc_money = 0
+
+                        row[7] = str(calc_money)        # SỐ TIỀN THU
+                        row[10] = str(final_km)         # SỐ KM
+                        row[11] = str(calc_money)       # TỔNG TIỀN
+                        row[12] = "Chờ thanh toán"      # TRẠNG THÁI
+                        
+                        # Xoá dòng cũ & Chèn dòng mới hoàn chỉnh (Tránh lỗi giới hạn API 429)
+                        sheet_cache.delete_rows(row_idx)
+                        sheet_cache.insert_row(row, index=row_idx)
+                        break
             except Exception:
                 pass
 
+    # KHI BẤM "XÁC NHẬN THANH TOÁN"
     elif action_trigger == "pay":
+        final_km = query_params.get("final_km", "0")
+
         if is_connected is True and sheet_cache and sheet_data:
             try:
                 cache_rows = sheet_cache.get_all_values()
                 if len(cache_rows) > 1:
-                    # Lấy dữ liệu cuốc xe từ CACHE đẩy sang DATA
-                    for row in cache_rows[1:]:
-                        if len(row) >= 13:
-                            row[12] = "Đã thanh toán"  # Cột 13: TRẠNG THÁI
-                            if row[7] == "0" or not row[7]:
-                                row[7] = row[11]      # Cột 8: SỐ TIỀN THU = TỔNG TIỀN
-                            sheet_data.append_row(row)  # Ghi lịch sử doanh số vào DATA
+                    row = cache_rows[1] 
+                    while len(row) < 13:
+                        row.append("")
                     
-                    # XÓA SACH CACHE CŨ & Thiết lập lại dòng tiêu đề
+                    vn_now = datetime.utcnow() + timedelta(hours=7)
+                    
+                    # Giữ nguyên giờ Kết Thúc nếu đã có, nếu chưa thì lấy hiện tại
+                    if not row[3]:
+                        row[3] = vn_now.strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # 1. TỔNG THỜI GIAN
+                    try:
+                        start_obj = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
+                        end_obj = datetime.strptime(row[3], "%Y-%m-%d %H:%M:%S")
+                        delta_sec = int((end_obj - start_obj).total_seconds())
+                        h, rem = divmod(delta_sec, 3600)
+                        m, s = divmod(rem, 60)
+                        row[4] = f"{h:02d}:{m:02d}:{s:02d}"
+                    except:
+                        row[4] = query_params.get("final_time", "00:00:00")
+                    
+                    # 2. SỐ KM THỰC TẾ & 3. TỔNG TIỀN = SỐ KM * ĐƠN GIÁ
+                    try:
+                        km_float = float(final_km)
+                        calc_money = int(km_float * UNIT_PRICE)
+                    except:
+                        calc_money = 0
+                    
+                    row[7] = str(calc_money)        # SỐ TIỀN THU
+                    row[10] = str(final_km)         # SỐ KM
+                    row[11] = str(calc_money)       # TỔNG TIỀN
+                    row[12] = "Đã thanh toán"       # TRẠNG THÁI
+                    
+                    # Lưu 1 dòng hoàn chỉnh 13 cột chuẩn xác sang DATA
+                    sheet_data.append_row(row) 
+                    
+                    # Dọn dẹp CACHE chuẩn bị cho cuốc mới
                     sheet_cache.clear() 
                     sheet_cache.append_row([
                         "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
@@ -280,9 +253,9 @@ elif st.session_state.mock_state == "running":
                         "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
                     ])
             except Exception as e:
-                st.error(f"Lỗi lưu DATA / Xóa CACHE: {e}")
+                pass
 
-        # Chuyển sang màn hình hoàn tất thanh toán
+        # Chuyển sang màn hình hoàn tất
         st.session_state.mock_state = "paid"
         st.query_params.clear()
         st.rerun()
@@ -379,17 +352,14 @@ elif st.session_state.mock_state == "running":
             let R = 6371; 
             let dLat = deg2rad(lat2 - lat1);
             let dLon = deg2rad(lon2 - lon1);
-            let a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-                Math.sin(dLon/2) * Math.sin(dLon/2); 
+            let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                    Math.sin(dLon/2) * Math.sin(dLon/2); 
             let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
             return R * c;
         }}
 
-        function deg2rad(deg) {{
-            return deg * (Math.PI / 180);
-        }}
+        function deg2rad(deg) {{ return deg * (Math.PI / 180); }}
 
         if (navigator.geolocation) {{
             watchId = navigator.geolocation.watchPosition(
@@ -400,28 +370,21 @@ elif st.session_state.mock_state == "running":
 
                     if (prevLat !== null && prevLon !== null) {{
                         let dist = getDistanceFromLatLonInKm(prevLat, prevLon, lat, lon);
-                        if (dist > 0.003 && accuracy < 50) {{
-                            totalDist += dist;
-                        }}
+                        if (dist > 0.003 && accuracy < 50) {{ totalDist += dist; }}
                     }}
-                    prevLat = lat;
-                    prevLon = lon;
+                    prevLat = lat; prevLon = lon;
 
                     let money = Math.round(totalDist * unitPrice);
                     document.getElementById('km-val').innerText = totalDist.toFixed(2) + " km";
                     document.getElementById('money-val').innerText = money.toLocaleString('vi-VN') + " đ";
                 }},
-                (error) => {{
-                    document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị!";
-                }},
+                (error) => {{ document.getElementById('status').innerText = "⚠️ Lỗi GPS: Hãy bật định vị!"; }},
                 {{ enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }}
             );
         }}
 
         function endTrip() {{
-            if (watchId !== null) {{
-                navigator.geolocation.clearWatch(watchId);
-            }}
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
             clearInterval(timerInterval);
 
             let finalKmStr = totalDist.toFixed(2);
@@ -439,14 +402,17 @@ elif st.session_state.mock_state == "running":
             urlParams.set('action', 'end');
             urlParams.set('km', finalKmStr);
             urlParams.set('time', finalTimeStr);
-            urlParams.set('money', finalMoneyNum);
-            
             fetch(window.location.pathname + '?' + urlParams.toString()).catch(() => {{}});
         }}
 
         function confirmPayment() {{
+            let finalKmStr = document.getElementById('final-km-val').innerText.replace(' km', '').trim();
+            let finalTimeStr = document.getElementById('final-time-val').innerText.trim();
+            
             let urlParams = new URLSearchParams(window.location.search);
             urlParams.set('action', 'pay');
+            urlParams.set('final_km', finalKmStr);
+            urlParams.set('final_time', finalTimeStr);
             window.location.search = urlParams.toString();
         }}
     </script>
@@ -477,18 +443,10 @@ elif st.session_state.mock_state == "paid":
 # NÚT ZALO & CÂU CHÚC Ở TẬN CÙNG DƯỚI ĐÁY
 # ============================================================
 st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
-st.markdown(
-    '<a href="https://zalo.me/0978666620" class="btn-zalo-single"'
-    ' target="_blank">💬 LIÊN HỆ HỖ TRỢ ZALO</a>',
-    unsafe_allow_html=True,
-)
+st.markdown('<a href="https://zalo.me/0978666620" class="btn-zalo-single" target="_blank">💬 LIÊN HỆ HỖ TRỢ ZALO</a>', unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
-
 st.markdown(
-    """
-    <div style='background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px; text-align: center; margin-top: 15px;'>
-        <span style='color: #047857; font-weight: bold; font-size: 15px;'>🌟 Chúc ní một ngày chạy xe bội thu, khách đông nườm nượp!</span>
-    </div>
-""",
+    "<div style='background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 12px; text-align: center; margin-top: 15px;'>"
+    "<span style='color: #047857; font-weight: bold; font-size: 15px;'>🌟 Chúc ní một ngày chạy xe bội thu, khách đông nườm nượp!</span></div>",
     unsafe_allow_html=True,
 )
