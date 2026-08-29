@@ -93,6 +93,7 @@ st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margi
 
 # KHUNG THẺ CHÍNH (ĐÃ MỞ LẠI)
 st.markdown("<div class='app-card'>", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center; font-size:15px; color:#64748b; margin-bottom:12px;'>Tài xế: <b>Nguyễn Văn A</b> &nbsp;|&nbsp; <span style='color:#10b981;'>● Sẵn sàng</span></div>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------
 # 1. MÀN HÌNH CHỜ (NHẬP KHÁCH & BẮT ĐẦU)
