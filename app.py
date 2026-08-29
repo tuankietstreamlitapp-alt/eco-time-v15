@@ -54,21 +54,16 @@ def get_next_stt(tab_name):
 def append_row_to_sheet(tab_name, row_values):
     try:
         ws, _ = get_worksheet_data(tab_name)
-        ws.append_row(row_values)
+        # BƯỚC VÁ LỖI 1: Ép toàn bộ dữ liệu về chuỗi (string) chuẩn để tránh lỗi JSON ngầm
+        safe_row = [str(x) if x is not None else "" for x in row_values]
+        
+        # BƯỚC VÁ LỖI 2: Dùng table_range="A1" để ÉP ghi vào dòng trống ngay sát dữ liệu cũ 
+        # (Chống bệnh ghi tít xuống đáy Sheet do dính định dạng viền/màu)
+        ws.append_row(safe_row, value_input_option='USER_ENTERED', table_range="A1")
         return True
-    except:
+    except Exception as e:
+        print(f"Lỗi ghi sheet {tab_name}: {e}") # Báo lỗi ra console nếu có
         return False
-
-def delete_row_from_sheet(tab_name, col_name, target_val):
-    try:
-        ws, records = get_worksheet_data(tab_name)
-        for i, row in enumerate(records, start=2):
-            if str(row.get(col_name, "")) == str(target_val):
-                ws.delete_rows(i)
-                return True
-    except:
-        pass
-    return False
 
 def update_driver_status(phone, status):
     if phone == "KHÁCH HÀNG": return
@@ -195,11 +190,21 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     km_val = round(dist_val / 1000.0, 2)
     fare_val = round(km_val * DONG_GIA)
     
-    # 4. Định dạng Data 13 Cột Khớp Với Trang Tính
+# 4. Định dạng Data 13 Cột Khớp Với Trang Tính (Ép kiểu Native tuyệt đối)
     row_data = [
-        get_next_stt("DATA_4567"), trip_id_from_url, start_time_str, end_time_str, total_time_str,                 
-        st.session_state.cust_name, st.session_state.cust_phone, fare_val,                         
-        st.session_state['user_name'], DONG_GIA, km_val, fare_val, "HOÀN THÀNH CUỐC XE"            
+        int(get_next_stt("DATA_4567")), 
+        str(trip_id_from_url), 
+        str(start_time_str), 
+        str(end_time_str), 
+        str(total_time_str),                 
+        str(st.session_state.cust_name), 
+        str(st.session_state.cust_phone), 
+        int(fare_val),                         
+        str(st.session_state['user_name']), 
+        int(DONG_GIA), 
+        float(km_val), 
+        int(fare_val), 
+        "HOÀN THÀNH CUỐC XE"            
     ]
     
     # 5. Xử lý Google Sheet: Thêm vào DATA, Xóa khỏi CACHE
