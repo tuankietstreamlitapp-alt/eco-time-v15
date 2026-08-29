@@ -161,16 +161,12 @@ if action_trigger == "pay":
       cache_rows = sheet_cache.get_all_values()
       if len(cache_rows) > 1:
         row_to_move = cache_rows[1] 
-        row_to_move[13] = "Đã thanh toán" if len(row_to_move) > 13 else None
+        row_to_move[12] = "Đã thanh toán" if len(row_to_move) > 12 else None
         sheet_data.append_row(row_to_move) 
-        sheet_cache.clear() 
-        sheet_cache.append_row([
-            "STT", "MÃ CUỐC XE", "THỜI GIAN BẮT ĐẦU", "THỜI GIAN KẾT THÚC", 
-            "TỔNG THỜI GIAN", "TÊN KHÁCH HÀNG", "SĐT KHÁCH HÀNG", "SỐ TIỀN THU", 
-            "TÊN TÀI XẾ", "ĐƠN GIÁ", "SỐ KM", "TỔNG TIỀN", "TRẠNG THÁI",
-        ])
-    except Exception:
-      pass
+        # Sửa thành batch_clear để giữ nguyên hàng tiêu đề số 1, tránh lỗi trắng bảng
+        sheet_cache.batch_clear(['A2:M100'])
+    except Exception as e:
+      print("Lỗi clear cache:", e)
 
   st.session_state.mock_state = "home"
   st.session_state.customer_name = ""
