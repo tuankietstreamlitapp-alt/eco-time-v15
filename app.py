@@ -161,9 +161,9 @@ if action_trigger == "pay":
       cache_rows = sheet_cache.get_all_values()
       if len(cache_rows) > 1:
         row_to_move = cache_rows[1] 
-        row_to_move[12] = "Đã thanh toán" if len(row_to_move) > 12 else None
+        if len(row_to_move) > 12:
+          row_to_move[12] = "Đã thanh toán"
         sheet_data.append_row(row_to_move) 
-        # Sửa thành batch_clear để giữ nguyên hàng tiêu đề số 1, tránh lỗi trắng bảng
         sheet_cache.batch_clear(['A2:M100'])
     except Exception as e:
       print("Lỗi clear cache:", e)
@@ -287,10 +287,10 @@ elif st.session_state.mock_state == "running":
         body {{ font-family: sans-serif; background: transparent; margin: 0; padding: 0; }}
         .app-card {{ background: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; }}
         .metric-row {{ font-size: 18px; font-weight: bold; color: #334155; padding: 12px 0; border-bottom: 2px dashed #f1f5f9; display: flex; justify-content: space-between; align-items: center; }}
-        .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
+        .btn-action {{ width: 100%; padding: 16px; border-radius: 14px; font-weight: 900; font-size: 22px; cursor: pointer; margin-top: 15px; border: none; box-sizing: border-box; text-align: center; text-decoration: none; display: block; }}
         .btn-end {{ background: #dc2626; color: white; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }}
         .btn-pay {{ background: #059669; color: white; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3); }}
-        .btn-action:hover {{ opacity: 0.9; }}
+        .btn-action:hover {{ opacity: 0.9; color: white; }}
         .gps-status {{ font-size: 13px; color: #10b981; text-align: center; margin-bottom: 12px; font-weight: bold; background: #ecfdf5; padding: 8px; border-radius: 8px; border: 1px solid #a7f3d0; }}
         .customer-tag {{ font-size: 14px; color: #0284c7; background: #f0f9ff; padding: 6px 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; border: 1px solid #bae6fd; }}
     </style>
@@ -346,7 +346,8 @@ elif st.session_state.mock_state == "running":
                 <span id="final-money-val" style="font-weight:900;">0 đ</span>
             </div>
 
-            <button class="btn-action btn-pay" onclick="confirmPayment()">✅ XÁC NHẬN THANH TOÁN & TẠO CUỐC MỚI</button>
+            <!-- Dùng thẻ a target="_top" để thoát khỏi khung iframe và gọi lệnh thanh toán an toàn tuyệt đối -->
+            <a id="pay-link" href="#" target="_top" class="btn-action btn-pay">✅ XÁC NHẬN THANH TOÁN & TẠO CUỐC MỚI</a>
         </div>
     </div>
 
@@ -426,6 +427,10 @@ elif st.session_state.mock_state == "running":
             document.getElementById('running-view').style.display = 'none';
             document.getElementById('payment-view').style.display = 'block';
 
+            // Cập nhật đường dẫn cho nút thanh toán hướng thẳng về trang chủ với action=pay
+            let payUrl = window.location.pathname + '?action=pay';
+            document.getElementById('pay-link').setAttribute('href', payUrl);
+
             let urlParams = new URLSearchParams(window.location.search);
             urlParams.set('action', 'end');
             urlParams.set('km', finalKmStr);
@@ -433,12 +438,6 @@ elif st.session_state.mock_state == "running":
             urlParams.set('money', finalMoneyNum);
             
             fetch(window.location.pathname + '?' + urlParams.toString()).catch(() => {{}});
-        }}
-
-        function confirmPayment() {{
-            let urlParams = new URLSearchParams(window.parent.location.search);
-            urlParams.set('action', 'pay');
-            window.parent.location.search = urlParams.toString();
         }}
     </script>
     </body>
