@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.2 Pro)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v4.3 Pro)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -111,7 +111,6 @@ st.markdown(
     .stApp { background-color: #f1f5f9; }
     .block-container { max-width: 550px; padding: 1.2rem 1rem 2rem 1rem; }
     
-    /* Card Style */
     .pro-card {
         background: #ffffff;
         border-radius: 20px;
@@ -141,11 +140,6 @@ st.markdown(
         color: white !important; 
         border: none !important; 
         box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
-        transition: all 0.2s ease;
-    }
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 24px rgba(5, 150, 105, 0.35);
     }
     input { 
         font-size: 16px !important; 
@@ -217,9 +211,21 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     append_row_to_sheet("DATA_4567", row_data)
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
     
-    st.session_state.clear()
-    st.query_params.clear()
-    st.rerun()
+    st.markdown(
+        """
+        <div style="text-align: center; padding: 40px 20px;">
+            <div style="font-size: 48px;">✅</div>
+            <h2>Đã lưu cuốc xe thành công!</h2>
+            <p>Hệ thống đã ghi nhận dữ liệu lên Google Sheets.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
+        st.session_state.clear()
+        st.query_params.clear()
+        st.rerun()
+    st.stop()
 
 # ============================================================
 # MÀN HÌNH 1: ĐĂNG NHẬP TÀI XẾ
@@ -309,7 +315,7 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (PRO UI)
+# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (v4.3 FIXED)
 # ============================================================
 else:
     st.markdown(
@@ -344,12 +350,12 @@ else:
         </div>
         
         <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3); transition: transform 0.1s;">
+            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
                 ⏸ TẠM DỪNG
             </button>
-            <a id="btnStop" href="#" onclick="handleStop(event)" target="_top" style="display: flex; justify-content: center; align-items: center; flex: 1; background: #dc2626; color: white; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; text-decoration: none; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3); transition: transform 0.1s;">
+            <button id="btnStop" onclick="handleStop(event)" style="flex: 1; background: #dc2626; color: white; border: none; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);">
                 🔴 KẾT THÚC
-            </a>
+            </button>
         </div>
         <div id="debug_acc" style="text-align: center; font-size: 12px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
     </div>
@@ -403,16 +409,6 @@ else:
         document.getElementById("km").innerText = km.toFixed(2);
         document.getElementById("price").innerText = calculateFareJS(km).toLocaleString('vi-VN') + " VNĐ";
         document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
-
-        let baseUrl = window.location.href.split('?')[0];
-        try {{
-            if (window.parent && window.parent.location) {{
-                baseUrl = window.parent.location.href.split('?')[0];
-            }}
-        }} catch(err) {{}}
-
-        let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
-        document.getElementById("btnStop").href = targetUrl;
     }}
 
     updateUI();
@@ -485,6 +481,24 @@ else:
         vibrate(90);
         localStorage.removeItem("xeom_v4_meters");
         localStorage.removeItem("xeom_v4_seconds");
+
+        let baseUrl = window.location.href.split('?')[0];
+        try {{
+            if (window.parent && window.parent.location) {{
+                baseUrl = window.parent.location.href.split('?')[0];
+            }}
+        }} catch(err) {{}}
+
+        let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
+        
+        showToast("Đang lưu cuốc xe...", "#059669");
+        
+        // Mở URL lưu dữ liệu sang tab mới để vượt hoàn toàn mọi rào cản iframe trên di động
+        window.open(targetUrl, '_blank');
+        
+        setTimeout(() => {{
+            window.location.reload();
+        }, 1500);
     }}
     </script>
     """
