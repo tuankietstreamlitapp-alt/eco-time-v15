@@ -103,29 +103,29 @@ def get_current_unit_price_desc(km):
         return "5,500 đ/km (Từ 40km trở lên)"
 
 # ============================================================
-# CSS GIAO DIỆN CHUYÊN NGHIỆP (PRO UI DESIGN & BUTTON ANIMATIONS)
+# CSS GIAO DIỆN CHUYÊN NGHIỆP
 # ============================================================
 st.markdown(
     """
     <style>
     .stApp { background-color: #f1f5f9; }
-    .block-container { max-width: 550px; padding: 1.2rem 1rem 2rem 1rem; }
+    .block-container { max-width: 550px; padding: 1.0rem 1rem 2rem 1rem; }
     
     .pro-card {
         background: #ffffff;
         border-radius: 20px;
-        padding: 18px 20px;
-        margin-bottom: 14px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
         border: 1px solid #e2e8f0;
     }
     
     .driver-header { 
         background: linear-gradient(135deg, #059669 0%, #047857 100%); 
-        padding: 18px 22px; 
+        padding: 16px 20px; 
         border-radius: 20px; 
         color: white; 
-        margin-bottom: 16px; 
+        margin-bottom: 14px; 
         box-shadow: 0 10px 20px rgba(5, 150, 105, 0.2); 
     }
     .driver-name { font-size: 20px; font-weight: 800; margin: 0; color: white; letter-spacing: -0.3px; }
@@ -135,7 +135,7 @@ st.markdown(
         border-radius: 16px !important; 
         font-weight: 800 !important; 
         font-size: 17px !important; 
-        min-height: 56px !important; 
+        min-height: 54px !important; 
         background-color: #059669 !important; 
         color: white !important; 
         border: none !important; 
@@ -150,7 +150,6 @@ st.markdown(
     }
     div.stButton > button:active {
         transform: scale(0.97) translateY(0px) !important;
-        box-shadow: 0 4px 10px rgba(5, 150, 105, 0.2) !important;
     }
 
     input { 
@@ -185,7 +184,7 @@ GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
 
 # ============================================================
-# XỬ LÝ THANH TOÁN & HIỂN THỊ BILL CHI TIẾT
+# XỬ LÝ THANH TOÁN & HIỂN THỊ BILL CHI TIẾT (CỬA SỔ 3)
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
@@ -225,7 +224,7 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     append_row_to_sheet("DATA_4567", row_data)
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
     
-    # HIỂN THỊ HÓA ĐƠN CHI TIẾT (BILL) DÙNG COMPONENTS.HTML TRÁNH LỖI HIỂN THỊ
+    # CỬA SỔ 3: HÓA ĐƠN RIÊNG BIỆT (HEIGHT 620 ĐỂ ĐẢM BẢO KHÔNG TRÀN KHUNG)
     invoice_html = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
         <style>
@@ -250,48 +249,48 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
                 transform: scale(0.97);
             }}
         </style>
-        <div style="background: #ffffff; border-radius: 20px; padding: 20px; border: 2px solid #059669; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 14px;">
-            <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 14px; margin-bottom: 14px;">
-                <div style="font-size: 36px;">🧾</div>
-                <div style="font-size: 20px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
+        <div style="background: #ffffff; border-radius: 20px; padding: 18px 20px; border: 2px solid #059669; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 12px;">
+            <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 12px; margin-bottom: 12px;">
+                <div style="font-size: 32px;">🧾</div>
+                <div style="font-size: 19px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
                 <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 2px;">Mã cuốc: {trip_id}</div>
             </div>
             
-            <div style="font-size: 14px; color: #334155; line-height: 1.8;">
-                <div style="display: flex; justify-content: space-between;">
+            <div style="font-size: 14px; color: #334155; line-height: 1.7;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Khách hàng:</span>
-                    <span style="font-weight: 800; color: #0f172a;">{cname} ({cphone if cphone else 'Không có SĐT'})</span>
+                    <span style="font-weight: 800; color: #0f172a; text-align: right;">{cname} ({cphone if cphone else 'Không có SĐT'})</span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Tài xế:</span>
                     <span style="font-weight: 800; color: #0f172a;">{driver_name_val}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span>
                     <span style="font-weight: 700; color: #0f172a;">{start_time_str}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span>
                     <span style="font-weight: 700; color: #0f172a;">{end_time_str}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #64748b; font-weight: 600;">Thời gian di chuyển:</span>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Thời gian đi:</span>
                     <span style="font-weight: 700; color: #0f172a;">{total_time_str}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #64748b; font-weight: 600;">Quãng đường thực tế:</span>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Quãng đường:</span>
                     <span style="font-weight: 800; color: #059669;">{km_val} km</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #64748b; font-weight: 600;">Mức giá áp dụng:</span>
-                    <span style="font-weight: 700; color: #d97706; font-size: 13px;">{unit_desc}</span>
+                    <span style="color: #64748b; font-weight: 600;">Mức giá:</span>
+                    <span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc}</span>
                 </div>
             </div>
             
-            <div style="margin-top: 16px; padding-top: 14px; border-top: 2px dashed #cbd5e1; text-align: center;">
-                <div style="font-size: 13px; color: #64748b; font-weight: 700; text-transform: uppercase;">Tổng thành tiền</div>
-                <div style="font-size: 38px; font-weight: 900; color: #059669; margin-top: 4px;">{format(fare_val, ',')} VNĐ</div>
-                <div style="font-size: 11px; color: #10b981; font-weight: 700; margin-top: 4px;">✅ Đã thanh toán & đồng bộ lên Google Sheets</div>
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 2px dashed #cbd5e1; text-align: center;">
+                <div style="font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase;">Tổng thành tiền</div>
+                <div style="font-size: 36px; font-weight: 900; color: #059669; margin-top: 2px;">{format(fare_val, ',')} VNĐ</div>
+                <div style="font-size: 11px; color: #10b981; font-weight: 700; margin-top: 2px;">✅ Đã thanh toán & đồng bộ lên Google Sheets</div>
             </div>
         </div>
         <button class="back-btn" onclick="goHome()">⬅️ QUAY LẠI MÀN HÌNH CHÍNH</button>
@@ -309,19 +308,19 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     }}
     </script>
     """
-    components.html(invoice_html, height=520)
+    components.html(invoice_html, height=620)
     st.stop()
 
 # ============================================================
-# MÀN HÌNH 1: ĐĂNG NHẬP TÀI XẾ
+# CỬA SỔ 1: ĐĂNG NHẬP TÀI XẾ
 # ============================================================
 if not st.session_state["logged_in"]:
     st.markdown(
         """
-        <div class="pro-card" style="text-align: center; padding: 30px 20px; margin-top: 20px;">
-            <div style="font-size: 48px; margin-bottom: 8px;">🛵</div>
-            <div style="font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">4567 XE ÔM PRO</div>
-            <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-top: 4px;">Hệ thống định vị & điều hành chuyên nghiệp</div>
+        <div class="pro-card" style="text-align: center; padding: 24px 20px; margin-top: 10px;">
+            <div style="font-size: 42px; margin-bottom: 6px;">🛵</div>
+            <div style="font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">4567 XE ÔM PRO</div>
+            <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-top: 2px;">Hệ thống định vị & điều hành chuyên nghiệp</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -329,7 +328,7 @@ if not st.session_state["logged_in"]:
     
     phone_input = st.text_input("Số điện thoại tài xế:", placeholder="Nhập SĐT của bác...")
     
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
     if st.button("ĐĂNG NHẬP HỆ THỐNG", use_container_width=True):
         if phone_input.strip() == "":
             st.warning("⚠️ Bác ơi, vui lòng nhập số điện thoại của mình nhé!")
@@ -354,7 +353,7 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # ============================================================
-# HEADER THÔNG TIN TÀI XẾ
+# HEADER CHUNG CHO CÁC MÀN HÌNH SAU KHI ĐĂNG NHẬP
 # ============================================================
 st.markdown(
     f"""
@@ -367,13 +366,13 @@ st.markdown(
 )
 
 # ============================================================
-# MÀN HÌNH 2: NHẬP THÔNG TIN KHÁCH HÀNG
+# CỬA SỔ 2A: THAO TÁC BẮT ĐẦU NHẬN KHÁCH (CHƯA VÀO CUỐC)
 # ============================================================
 if not st.session_state["trip_active"]:
     st.markdown(
         """
         <div class="pro-card">
-            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 14px;">📝 Bước 1: Khởi tạo cuốc xe</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 10px;">📝 Bước 1: Khởi tạo cuốc xe</div>
         """,
         unsafe_allow_html=True,
     )
@@ -381,7 +380,7 @@ if not st.session_state["trip_active"]:
     cust_phone_in = st.text_input("SĐT khách hàng (Tùy chọn):", placeholder="VD: 0912345678")
     st.markdown("</div>", unsafe_allow_html=True)
     
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
     if st.button("🟢 BẮT ĐẦU HÀNH TRÌNH", use_container_width=True):
         st.session_state["trip_active"] = True
         st.session_state["trip_started_at"] = time.time()
@@ -400,14 +399,14 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS & THANH TOÁN
+# CỬA SỔ 2B: ĐANG ĐO HÀNH TRÌNH GPS (ĐANG TRONG CUỐC XE)
 # ============================================================
 else:
     st.markdown(
         f"""
         <div class="pro-card" style="border-left: 5px solid #059669; background: #f8fafc;">
-            <div style="color: #059669; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">🟢 ĐANG ĐO HÀNH TRÌNH GPS</div>
-            <div style="font-size: 15px; color: #1e293b; margin-top: 6px; font-weight: 700;">Khách: {st.session_state.get('cust_name', 'Khách vãng lai')} &bull; SĐT: {st.session_state.get('cust_phone', '---')}</div>
+            <div style="color: #059669; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">🟢 ĐANG ĐO HÀNH TRÌNH GPS</div>
+            <div style="font-size: 14px; color: #1e293b; margin-top: 4px; font-weight: 700;">Khách: {st.session_state.get('cust_name', 'Khách vãng lai')} &bull; SĐT: {st.session_state.get('cust_phone', '---')}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -439,29 +438,29 @@ else:
         </style>
 
         <!-- Toast Notification -->
-        <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 12px; padding: 12px 18px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 90px; font-size: 14px; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
+        <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 12px; padding: 10px 16px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 85px; font-size: 13px; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
             Thông báo
         </div>
 
-        <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border-radius: 20px; padding: 22px 16px; margin-bottom: 16px; text-align: center; box-shadow: 0 10px 25px rgba(2, 44, 34, 0.2);">
-            <div style="color: #34d399; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;" id="status_label">ĐỒNG HỒ TÍNH CƯỚC THỜI GIAN THỰC</div>
-            <div id="price" style="color: #ffffff; font-size: 44px; font-weight: 900; margin: 6px 0; letter-spacing: -1px;">0 VNĐ</div>
-            <div style="display: flex; justify-content: space-around; margin-top: 14px; font-size: 14px; font-weight: 700; color: #e2e8f0; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+        <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border-radius: 20px; padding: 20px 16px; margin-bottom: 12px; text-align: center; box-shadow: 0 10px 25px rgba(2, 44, 34, 0.2);">
+            <div style="color: #34d399; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;" id="status_label">ĐỒNG HỒ TÍNH CƯỚC THỜI GIAN THỰC</div>
+            <div id="price" style="color: #ffffff; font-size: 40px; font-weight: 900; margin: 4px 0; letter-spacing: -1px;">0 VNĐ</div>
+            <div style="display: flex; justify-content: space-around; margin-top: 12px; font-size: 14px; font-weight: 700; color: #e2e8f0; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
                 <div>⏱ <span id="timer">00:00:00</span></div>
                 <div>🛣 <span id="km">0.00</span> km</div>
             </div>
-            <div id="rate_desc" style="color: #a7f3d0; font-size: 13px; margin-top: 10px; font-weight: 600;">Đơn giá: Miễn phí dưới 3km</div>
+            <div id="rate_desc" style="color: #a7f3d0; font-size: 12px; margin-top: 8px; font-weight: 600;">Đơn giá: Miễn phí dưới 3km</div>
         </div>
         
-        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <button id="btnPause" class="action-btn" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
                 ⏸ TẠM DỪNG
             </button>
-            <button id="btnPay" class="action-btn" onclick="handlePayment(event)" style="flex: 1.2; background: #059669; color: white; font-size: 16px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);">
+            <button id="btnPay" class="action-btn" onclick="handlePayment(event)" style="flex: 1.2; background: #059669; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);">
                 💵 THANH TOÁN
             </button>
         </div>
-        <div id="debug_acc" style="text-align: center; font-size: 12px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
+        <div id="debug_acc" style="text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
     </div>
 
     <script>
@@ -601,4 +600,4 @@ else:
     }}
     </script>
     """
-    components.html(html_live_tracker, height=330)
+    components.html(html_live_tracker, height=310)
