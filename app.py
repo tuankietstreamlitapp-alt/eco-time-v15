@@ -103,7 +103,7 @@ def get_current_unit_price_desc(km):
         return "5,500 đ/km (Từ 40km trở lên)"
 
 # ============================================================
-# CSS GIAO DIỆN CHUYÊN NGHIỆP (PRO UI DESIGN)
+# CSS GIAO DIỆN CHUYÊN NGHIỆP (PRO UI DESIGN & BUTTON ANIMATIONS)
 # ============================================================
 st.markdown(
     """
@@ -131,6 +131,7 @@ st.markdown(
     .driver-name { font-size: 20px; font-weight: 800; margin: 0; color: white; letter-spacing: -0.3px; }
     .driver-phone { font-size: 14px; margin-top: 4px; color: #d1fae5; font-weight: 600; }
     
+    /* Hiệu ứng mượt mà & phản hồi khi ấn nút Streamlit */
     div.stButton > button { 
         border-radius: 16px !important; 
         font-weight: 800 !important; 
@@ -140,7 +141,19 @@ st.markdown(
         color: white !important; 
         border: none !important; 
         box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        cursor: pointer !important;
     }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(5, 150, 105, 0.35) !important;
+        filter: brightness(1.05);
+    }
+    div.stButton > button:active {
+        transform: scale(0.97) translateY(0px) !important;
+        box-shadow: 0 4px 10px rgba(5, 150, 105, 0.2) !important;
+    }
+
     input { 
         font-size: 16px !important; 
         font-weight: 600 !important; 
@@ -173,7 +186,7 @@ GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
 
 # ============================================================
-# XỬ LÝ KẾT THÚC CUỐC XE & LƯU TRỮ ĐỒNG BỘ
+# XỬ LÝ THANH TOÁN & GHI NHẬN CUỐC XE
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
@@ -205,7 +218,7 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     row_data = [
         stt, trip_id, start_time_str, end_time_str, total_time_str,
         cname, cphone, fare_val, st.session_state.get('user_name', 'Tài xế'),
-        get_current_unit_price_desc(km_val), km_val, fare_val, "HOÀN THÀNH CUỐC XE"
+        get_current_unit_price_desc(km_val), km_val, fare_val, "ĐÃ THANH TOÁN"
     ]
     
     append_row_to_sheet("DATA_4567", row_data)
@@ -215,8 +228,8 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
         """
         <div style="text-align: center; padding: 40px 20px;">
             <div style="font-size: 48px;">✅</div>
-            <h2>Đã lưu cuốc xe thành công!</h2>
-            <p>Hệ thống đã ghi nhận dữ liệu lên Google Sheets.</p>
+            <h2>Thanh toán & lưu cuốc xe thành công!</h2>
+            <p>Hệ thống đã xóa cache và ghi nhận dữ liệu lên Google Sheets.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -315,7 +328,7 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (v4.3 FIXED)
+# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS & THANH TOÁN (CÓ HIỆU ỨNG NÚT BẤM)
 # ============================================================
 else:
     st.markdown(
@@ -334,6 +347,26 @@ else:
     
     html_live_tracker = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
+        <style>
+            /* Hiệu ứng mượt mà và nhún nút cho các nút điều khiển bên trong widget */
+            .action-btn {{
+                border: none;
+                border-radius: 16px;
+                padding: 14px;
+                font-size: 15px;
+                font-weight: 800;
+                cursor: pointer;
+                transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            }}
+            .action-btn:hover {{
+                filter: brightness(1.1);
+                transform: translateY(-2px);
+            }}
+            .action-btn:active {{
+                transform: scale(0.96) translateY(0px) !important;
+            }}
+        </style>
+
         <!-- Toast Notification -->
         <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 12px; padding: 12px 18px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 90px; font-size: 14px; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
             Thông báo
@@ -350,11 +383,11 @@ else:
         </div>
         
         <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
+            <button id="btnPause" class="action-btn" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
                 ⏸ TẠM DỪNG
             </button>
-            <button id="btnStop" onclick="handleStop(event)" style="flex: 1; background: #dc2626; color: white; border: none; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);">
-                🔴 KẾT THÚC
+            <button id="btnPay" class="action-btn" onclick="handlePayment(event)" style="flex: 1.2; background: #059669; color: white; font-size: 16px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);">
+                💵 THANH TOÁN
             </button>
         </div>
         <div id="debug_acc" style="text-align: center; font-size: 12px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
@@ -477,7 +510,7 @@ else:
         );
     }}
 
-    function handleStop(e) {{
+    function handlePayment(e) {{
         vibrate(90);
         localStorage.removeItem("xeom_v4_meters");
         localStorage.removeItem("xeom_v4_seconds");
@@ -491,7 +524,7 @@ else:
 
         let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
         
-        showToast("Đang lưu cuốc xe...", "#059669");
+        showToast("Đang xử lý thanh toán...", "#059669");
         
         window.open(targetUrl, '_blank');
         
