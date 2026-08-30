@@ -282,7 +282,7 @@ else:
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
     
-    # Khung HTML live tracker với chiều cao được tối ưu (340px) để hiển thị đầy đủ trên mobile
+    # Khung HTML live tracker với cơ chế điều hướng trang chính (tránh lỗi lồng iframe)
     html_live_tracker = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; text-align: center;">
         <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 12px; margin-bottom: 10px;">
@@ -412,10 +412,28 @@ else:
         localStorage.removeItem("xeom_seconds");
         
         let baseUrl = window.location.href.split('?')[0];
-        try {{ if (window.parent && window.parent.location) {{ baseUrl = window.parent.location.href.split('?')[0]; }} }} catch(e) {{}}
+        try {{ 
+            if (window.parent && window.parent.location) {{ 
+                baseUrl = window.parent.location.href.split('?')[0]; 
+            }} 
+        }} catch(e) {{}}
         
         let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cname=" + encodeURIComponent("{st.session_state.get('cust_name','')}") + "&cphone=" + encodeURIComponent("{st.session_state.get('cust_phone','')}");
-        try {{ window.top.location.href = targetUrl; }} catch(e) {{ window.location.href = targetUrl; }}
+        
+        // Cải tiến điều hướng đa tầng để ép toàn bộ tab trình duyệt tải lại từ gốc, tránh kẹt pop-up
+        try {{
+            window.parent.location.href = targetUrl;
+        }} catch(e1) {{
+            try {{
+                window.top.location.href = targetUrl;
+            }} catch(e2) {{
+                let a = document.createElement('a');
+                a.href = targetUrl;
+                a.target = '_top';
+                document.body.appendChild(a);
+                a.click();
+            }}
+        }}
     }}
     </script>
     """
