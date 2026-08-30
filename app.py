@@ -493,12 +493,11 @@ else:
         
         showToast("Đang lưu cuốc xe...", "#059669");
         
-        // Mở URL lưu dữ liệu sang tab mới để vượt hoàn toàn mọi rào cản iframe trên di động
         window.open(targetUrl, '_blank');
         
         setTimeout(() => {{
             window.location.reload();
-        }, 1500);
+        }}, 1500);
     }}
     </script>
     """
