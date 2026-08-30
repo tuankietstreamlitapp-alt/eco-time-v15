@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v1.1)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -80,7 +80,7 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         return False
 
 # ============================================================
-# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG MỚI
+# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG MỚI (v1.1)
 # ============================================================
 def calculate_fare(km):
     if km < 3.0:
@@ -103,7 +103,7 @@ def get_current_unit_price_desc(km):
         return "5,500 đ/km (Từ 40km trở lên)"
 
 # ============================================================
-# CSS GIAO DIỆN TO, RÕ, ĐÃ KHẮC PHỤC LỖI KHUNG HÌNH DI ĐỘNG
+# CSS GIAO DIỆN V1.1 (HIỆU ỨNG NHẤN NÚT & TỐI ƯU DI ĐỘNG)
 # ============================================================
 st.markdown(
     """
@@ -113,8 +113,24 @@ st.markdown(
     .driver-header { background: linear-gradient(135deg, #00A86B 0%, #007A4D 100%); padding: 18px 20px; border-radius: 16px; color: white; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2); }
     .driver-name { font-size: 20px; font-weight: 900; margin: 0; color: white; }
     .driver-phone { font-size: 14px; margin-top: 4px; color: #e2e8f0; font-weight: 600; }
-    div.stButton > button { border-radius: 14px !important; font-weight: 900 !important; font-size: 18px !important; min-height: 56px !important; background-color: #00A86B !important; color: white !important; border: none !important; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3); }
-    div.stButton > button:hover { background-color: #008f5a !important; }
+    
+    div.stButton > button { 
+        border-radius: 14px !important; 
+        font-weight: 900 !important; 
+        font-size: 18px !important; 
+        min-height: 56px !important; 
+        background-color: #00A86B !important; 
+        color: white !important; 
+        border: none !important; 
+        box-shadow: 0 4px 12px rgba(0, 168, 107, 0.3);
+        transition: transform 0.1s ease, background-color 0.1s ease !important;
+    }
+    div.stButton > button:active { 
+        transform: scale(0.97) !important; 
+    }
+    div.stButton > button:hover { 
+        background-color: #008f5a !important; 
+    }
     input { font-size: 16px !important; font-weight: 600 !important; }
     </style>
     """,
@@ -194,7 +210,7 @@ if not st.session_state["logged_in"]:
         """
         <div style="text-align: center; padding: 20px 0;">
             <div style="font-size: 40px;">🛵</div>
-            <div style="font-size: 24px; font-weight: 900; color: #0f172a; margin-top: 5px;">4567 XE ÔM</div>
+            <div style="font-size: 24px; font-weight: 900; color: #0f172a; margin-top: 5px;">4567 XE ÔM (v1.1)</div>
             <div style="font-size: 13px; color: #64748b;">Đăng nhập để nhận cuốc xe mới</div>
         </div>
         """,
@@ -267,7 +283,7 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# CỬA SỔ 3: ĐANG CHẠY TRÊN ĐƯỜNG (CÓ TÍNH NĂNG TẠM DỪNG & KẾT THÚC)
+# CỬA SỔ 3: ĐANG CHẠY TRÊN ĐƯỜNG (CÓ HAPTICS, TOAST & CHỐNG LỒNG IFRAME)
 # ============================================================
 else:
     st.markdown(
@@ -282,9 +298,14 @@ else:
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
     
-    # Khung HTML live tracker với cơ chế điều hướng trang chính (tránh lỗi lồng iframe)
+    # Khung HTML live tracker v1.1 tích hợp Toast Notification & Haptic Feedback
     html_live_tracker = f"""
-    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; text-align: center;">
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; text-align: center; position: relative;">
+        <!-- Toast Notification Banner -->
+        <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 10px; padding: 10px 16px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 75px; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
+            Thông báo
+        </div>
+
         <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 12px; margin-bottom: 10px;">
             <div style="color: #166534; font-size: 12px; font-weight: 800; text-transform: uppercase;" id="status_label">HÀNH TRÌNH ĐANG CHẠY</div>
             <div id="price" style="color: #0f172a; font-size: 36px; font-weight: 900; margin: 2px 0;">0 VNĐ</div>
@@ -296,10 +317,10 @@ else:
         </div>
         
         <div style="display: flex; gap: 10px; margin-bottom: 8px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);">
+            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3); transition: transform 0.1s;">
                 ⏸ TẠM DỪNG
             </button>
-            <button id="btnStop" onclick="stopTripNow()" style="flex: 1; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
+            <button id="btnStop" onclick="stopTripNow()" style="flex: 1; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); transition: transform 0.1s;">
                 🔴 KẾT THÚC CHUYẾN
             </button>
         </div>
@@ -310,6 +331,26 @@ else:
     let isPaused = false;
     let secondsElapsed = parseInt(localStorage.getItem("xeom_seconds") || "0");
     let totalMeters = parseFloat(localStorage.getItem("xeom_total_meters") || "0.0");
+
+    // Rung phản hồi (Haptic feedback) cho bác tài
+    function vibrate(duration = 40) {{
+        if (navigator.vibrate) {{
+            navigator.vibrate(duration);
+        }}
+    }}
+
+    // Hiển thị thông báo Toast nổi tự động biến mất sau 3 giây
+    function showToast(text, bg = "#0f172a") {{
+        let t = document.getElementById("toast_msg");
+        t.innerText = text;
+        t.style.backgroundColor = bg;
+        t.style.visibility = "visible";
+        t.style.opacity = "1";
+        setTimeout(() => {{
+            t.style.opacity = "0";
+            t.style.visibility = "hidden";
+        }}, 3000);
+    }}
 
     function calculateFareJS(km) {{
         if (km < 3.0) return 0;
@@ -349,19 +390,26 @@ else:
     }}, 1000);
 
     function togglePause() {{
+        vibrate(50);
         isPaused = !isPaused;
         let btn = document.getElementById("btnPause");
         let label = document.getElementById("status_label");
         if (isPaused) {{
             btn.innerText = "▶️ TIẾP TỤC";
             btn.style.background = "#2563eb";
+            btn.style.transform = "scale(0.96)";
+            setTimeout(() => btn.style.transform = "scale(1)", 100);
             label.innerText = "⏸ ĐANG TẠM DỪNG (Thời gian & KM đứng im)";
             label.style.color = "#d97706";
+            showToast("⏸ Đã tạm dừng hành trình.", "#d97706");
         }} else {{
             btn.innerText = "⏸ TẠM DỪNG";
             btn.style.background = "#d97706";
+            btn.style.transform = "scale(0.96)";
+            setTimeout(() => btn.style.transform = "scale(1)", 100);
             label.innerText = "🟢 HÀNH TRÌNH ĐANG CHẠY";
             label.style.color = "#166534";
+            showToast("▶️ Đã tiếp tục hành trình.", "#00A86B");
         }}
     }}
 
@@ -402,10 +450,14 @@ else:
     }}
 
     function stopTripNow() {{
+        vibrate(80);
         let btn = document.getElementById("btnStop");
-        btn.innerText = "⏳ ĐANG LƯU...";
+        btn.innerText = "⏳ ĐANG LƯU CUỐC...";
         btn.style.background = "#64748b";
+        btn.style.transform = "scale(0.96)";
         btn.disabled = true;
+        
+        showToast("🔴 Đang lưu chuyến đi lên hệ thống...", "#dc2626");
 
         let finalDist = localStorage.getItem("xeom_total_meters") || "0";
         localStorage.removeItem("xeom_total_meters");
@@ -420,20 +472,18 @@ else:
         
         let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cname=" + encodeURIComponent("{st.session_state.get('cust_name','')}") + "&cphone=" + encodeURIComponent("{st.session_state.get('cust_phone','')}");
         
-        // Cải tiến điều hướng đa tầng để ép toàn bộ tab trình duyệt tải lại từ gốc, tránh kẹt pop-up
-        try {{
-            window.parent.location.href = targetUrl;
-        }} catch(e1) {{
+        // Điều hướng gốc sạch sẽ tránh lỗi lồng iframe
+        setTimeout(() => {{
             try {{
-                window.top.location.href = targetUrl;
-            }} catch(e2) {{
-                let a = document.createElement('a');
-                a.href = targetUrl;
-                a.target = '_top';
-                document.body.appendChild(a);
-                a.click();
+                window.parent.location.href = targetUrl;
+            }} catch(e1) {{
+                try {{
+                    window.top.location.href = targetUrl;
+                }} catch(e2) {{
+                    window.location.href = targetUrl;
+                }}
             }}
-        }}
+        }}, 1000);
     }}
     </script>
     """
