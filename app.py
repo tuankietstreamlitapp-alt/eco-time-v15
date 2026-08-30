@@ -131,7 +131,6 @@ st.markdown(
     .driver-name { font-size: 20px; font-weight: 800; margin: 0; color: white; letter-spacing: -0.3px; }
     .driver-phone { font-size: 14px; margin-top: 4px; color: #d1fae5; font-weight: 600; }
     
-    /* Hiệu ứng mượt mà & phản hồi khi ấn nút Streamlit */
     div.stButton > button { 
         border-radius: 16px !important; 
         font-weight: 800 !important; 
@@ -186,7 +185,7 @@ GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
 
 # ============================================================
-# XỬ LÝ THANH TOÁN & GHI NHẬN CUỐC XE
+# XỬ LÝ THANH TOÁN & HIỂN THỊ BILL CHI TIẾT
 # ============================================================
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
@@ -213,27 +212,71 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
 
     km_val = round(dist_val / 1000.0, 2)
     fare_val = calculate_fare(km_val)
+    driver_name_val = st.session_state.get('user_name', 'Tài xế')
+    unit_desc = get_current_unit_price_desc(km_val)
     
+    # Lưu vào Google Sheets và xóa cache
     stt = get_next_stt("DATA_4567")
     row_data = [
         stt, trip_id, start_time_str, end_time_str, total_time_str,
-        cname, cphone, fare_val, st.session_state.get('user_name', 'Tài xế'),
-        get_current_unit_price_desc(km_val), km_val, fare_val, "ĐÃ THANH TOÁN"
+        cname, cphone, fare_val, driver_name_val,
+        unit_desc, km_val, fare_val, "ĐÃ THANH TOÁN"
     ]
-    
     append_row_to_sheet("DATA_4567", row_data)
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
     
+    # HIỂN THỊ HÓA ĐƠN CHI TIẾT (BILL) CHO KHÁCH & TÀI XẾ
     st.markdown(
-        """
-        <div style="text-align: center; padding: 40px 20px;">
-            <div style="font-size: 48px;">✅</div>
-            <h2>Thanh toán & lưu cuốc xe thành công!</h2>
-            <p>Hệ thống đã xóa cache và ghi nhận dữ liệu lên Google Sheets.</p>
+        f"""
+        <div class="pro-card" style="border: 2px solid #059669; background: #ffffff;">
+            <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 14px; margin-bottom: 14px;">
+                <div style="font-size: 36px;">🧾</div>
+                <div style="font-size: 20px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
+                <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 2px;">Mã cuốc: {trip_id}</div>
+            </div>
+            
+            <div style="font-size: 14px; color: #334155; line-height: 1.8;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Khách hàng:</span>
+                    <span style="font-weight: 800; color: #0f172a;">{cname} ({cphone if cphone else 'Không có SĐT'})</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Tài xế:</span>
+                    <span style="font-weight: 800; color: #0f172a;">{driver_name_val}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span>
+                    <span style="font-weight: 700; color: #0f172a;">{start_time_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span>
+                    <span style="font-weight: 700; color: #0f172a;">{end_time_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Thời gian di chuyển:</span>
+                    <span style="font-weight: 700; color: #0f172a;">{total_time_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Quãng đường thực tế:</span>
+                    <span style="font-weight: 800; color: #059669;">{km_val} km</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Mức giá áp dụng:</span>
+                    <span style="font-weight: 700; color: #d97706; font-size: 13px;">{unit_desc}</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 16px; padding-top: 14px; border-top: 2px dashed #cbd5e1; text-align: center;">
+                <div style="font-size: 13px; color: #64748b; font-weight: 700; text-transform: uppercase;">Tổng thành tiền</div>
+                <div style="font-size: 38px; font-weight: 900; color: #059669; margin-top: 4px;">{format(fare_val, ',')} VNĐ</div>
+                <div style="font-size: 11px; color: #10b981; font-weight: 700; margin-top: 4px;">✅ Đã thanh toán & đồng bộ lên Google Sheets</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
         st.session_state.clear()
         st.query_params.clear()
@@ -328,7 +371,7 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS & THANH TOÁN (CÓ HIỆU ỨNG NÚT BẤM)
+# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS & THANH TOÁN
 # ============================================================
 else:
     st.markdown(
@@ -348,7 +391,6 @@ else:
     html_live_tracker = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
         <style>
-            /* Hiệu ứng mượt mà và nhún nút cho các nút điều khiển bên trong widget */
             .action-btn {{
                 border: none;
                 border-radius: 16px;
