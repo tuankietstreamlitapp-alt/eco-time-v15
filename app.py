@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.1)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v4.2 Pro)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -80,7 +80,7 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         return False
 
 # ============================================================
-# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG CHUẨN
+# HÀM TÍNH CƯỚC BẬC THANG CHUẨN
 # ============================================================
 def calculate_fare(km):
     if km < 3.0:
@@ -103,35 +103,63 @@ def get_current_unit_price_desc(km):
         return "5,500 đ/km (Từ 40km trở lên)"
 
 # ============================================================
-# CSS GIAO DIỆN TỐI ƯU CHO ĐỘ TUỔI 45-67
+# CSS GIAO DIỆN CHUYÊN NGHIỆP (PRO UI DESIGN)
 # ============================================================
 st.markdown(
     """
     <style>
-    .stApp { background-color: #f8fafc; }
-    .block-container { max-width: 600px; padding-top: 1.5rem; padding-bottom: 2rem; padding-left: 1rem; padding-right: 1rem; }
-    .driver-header { background: linear-gradient(135deg, #00A86B 0%, #007A4D 100%); padding: 16px 20px; border-radius: 16px; color: white; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2); }
-    .driver-name { font-size: 20px; font-weight: 900; margin: 0; color: white; }
-    .driver-phone { font-size: 14px; margin-top: 4px; color: #e2e8f0; font-weight: 700; }
+    .stApp { background-color: #f1f5f9; }
+    .block-container { max-width: 550px; padding: 1.2rem 1rem 2rem 1rem; }
+    
+    /* Card Style */
+    .pro-card {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+    }
+    
+    .driver-header { 
+        background: linear-gradient(135deg, #059669 0%, #047857 100%); 
+        padding: 18px 22px; 
+        border-radius: 20px; 
+        color: white; 
+        margin-bottom: 16px; 
+        box-shadow: 0 10px 20px rgba(5, 150, 105, 0.2); 
+    }
+    .driver-name { font-size: 20px; font-weight: 800; margin: 0; color: white; letter-spacing: -0.3px; }
+    .driver-phone { font-size: 14px; margin-top: 4px; color: #d1fae5; font-weight: 600; }
     
     div.stButton > button { 
-        border-radius: 14px !important; 
-        font-weight: 900 !important; 
-        font-size: 18px !important; 
-        min-height: 58px !important; 
-        background-color: #00A86B !important; 
+        border-radius: 16px !important; 
+        font-weight: 800 !important; 
+        font-size: 17px !important; 
+        min-height: 56px !important; 
+        background-color: #059669 !important; 
         color: white !important; 
         border: none !important; 
-        box-shadow: 0 4px 12px rgba(0, 168, 107, 0.25);
+        box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
+        transition: all 0.2s ease;
     }
-    input { font-size: 18px !important; font-weight: 700 !important; }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(5, 150, 105, 0.35);
+    }
+    input { 
+        font-size: 16px !important; 
+        font-weight: 600 !important; 
+        border-radius: 12px !important;
+        border: 1.5px solid #cbd5e1 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # ============================================================
-# KHỞI TẠO SESSION STATE AN TOÀN
+# KHỞI TẠO SESSION STATE
 # ============================================================
 defaults = {
     "logged_in": False,
@@ -199,22 +227,23 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
 if not st.session_state["logged_in"]:
     st.markdown(
         """
-        <div style="text-align: center; padding: 20px 0 10px 0;">
-            <div style="font-size: 42px;">🛵</div>
-            <div style="font-size: 24px; font-weight: 900; color: #0f172a; margin-top: 6px;">4567 XE ÔM (v4.1)</div>
-            <div style="font-size: 14px; color: #64748b; font-weight: 600;">Hệ thống định vị & tính cước tự động</div>
+        <div class="pro-card" style="text-align: center; padding: 30px 20px; margin-top: 20px;">
+            <div style="font-size: 48px; margin-bottom: 8px;">🛵</div>
+            <div style="font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">4567 XE ÔM PRO</div>
+            <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-top: 4px;">Hệ thống định vị & điều hành chuyên nghiệp</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     
-    phone_input = st.text_input("Số điện thoại tài xế:", placeholder="Ví dụ: 0978666620")
+    phone_input = st.text_input("Số điện thoại tài xế:", placeholder="Nhập SĐT của bác...")
     
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     if st.button("ĐĂNG NHẬP HỆ THỐNG", use_container_width=True):
         if phone_input.strip() == "":
             st.warning("⚠️ Bác ơi, vui lòng nhập số điện thoại của mình nhé!")
         else:
-            with st.spinner("Đang xác thực tài khoản..."):
+            with st.spinner("Đang xác thực thông tin..."):
                 _, login_records = get_worksheet_data("DANG_NHAP")
                 matched_user = None
                 for row in login_records:
@@ -226,8 +255,8 @@ if not st.session_state["logged_in"]:
                     st.session_state["logged_in"] = True
                     st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
                     st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Tài xế"))
-                    st.success(f"Chào bác **{st.session_state['user_name']}**! Đang chuyển vào giao diện chính...")
-                    time.sleep(0.5)
+                    st.success(f"Chào bác **{st.session_state['user_name']}**! Đang vào ứng dụng...")
+                    time.sleep(0.4)
                     st.rerun()
                 else:
                     st.error("❌ Số điện thoại không đúng hoặc chưa được cấp quyền!")
@@ -250,12 +279,19 @@ st.markdown(
 # MÀN HÌNH 2: NHẬP THÔNG TIN KHÁCH HÀNG
 # ============================================================
 if not st.session_state["trip_active"]:
-    st.markdown("### 📝 Bước 1: Thông tin khách hàng")
-    cust_name_in = st.text_input("Tên khách hàng (Không bắt buộc):", placeholder="VD: Anh Nam")
-    cust_phone_in = st.text_input("SĐT khách hàng (Không bắt buộc):", placeholder="VD: 0912345678")
+    st.markdown(
+        """
+        <div class="pro-card">
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 14px;">📝 Bước 1: Khởi tạo cuốc xe</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cust_name_in = st.text_input("Tên khách hàng (Tùy chọn):", placeholder="VD: Anh Nam")
+    cust_phone_in = st.text_input("SĐT khách hàng (Tùy chọn):", placeholder="VD: 0912345678")
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    st.write("")
-    if st.button("🟢 BẮT ĐẦU HÀNH TRÌNH GPS", use_container_width=True):
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    if st.button("🟢 BẮT ĐẦU HÀNH TRÌNH", use_container_width=True):
         st.session_state["trip_active"] = True
         st.session_state["trip_started_at"] = time.time()
         st.session_state["cust_name"] = cust_name_in.strip() if cust_name_in.strip() else "Khách vãng lai"
@@ -273,14 +309,14 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (v4.1 FIXED)
+# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (PRO UI)
 # ============================================================
 else:
     st.markdown(
         f"""
-        <div style="background: #ffffff; border: 2px solid #00A86B; border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;">
-            <div style="color: #00A86B; font-size: 14px; font-weight: 800; text-transform: uppercase;">🟢 BƯỚC 2: HÀNH TRÌNH GPS Đang CHẠY</div>
-            <div style="font-size: 15px; color: #334155; margin-top: 6px;">Khách: <b>{st.session_state.get('cust_name', 'Khách vãng lai')}</b> | SĐT: <b>{st.session_state.get('cust_phone', '---')}</b></div>
+        <div class="pro-card" style="border-left: 5px solid #059669; background: #f8fafc;">
+            <div style="color: #059669; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">🟢 ĐANG ĐO HÀNH TRÌNH GPS</div>
+            <div style="font-size: 15px; color: #1e293b; margin-top: 6px; font-weight: 700;">Khách: {st.session_state.get('cust_name', 'Khách vãng lai')} &bull; SĐT: {st.session_state.get('cust_phone', '---')}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -291,31 +327,31 @@ else:
     cphone_val = st.session_state.get('cust_phone', '')
     
     html_live_tracker = f"""
-    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; text-align: center; position: relative;">
-        <!-- Toast Notification Banner -->
-        <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 10px; padding: 12px 18px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 85px; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
+        <!-- Toast Notification -->
+        <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 12px; padding: 12px 18px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 90px; font-size: 14px; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
             Thông báo
         </div>
 
-        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 16px; padding: 16px; margin-bottom: 14px;">
-            <div style="color: #166534; font-size: 13px; font-weight: 800; text-transform: uppercase;" id="status_label">HÀNH TRÌNH ĐANG ĐO GPS</div>
-            <div id="price" style="color: #0f172a; font-size: 42px; font-weight: 900; margin: 4px 0;">0 VNĐ</div>
-            <div style="display: flex; justify-content: space-around; margin-top: 10px; font-size: 14px; font-weight: 800; color: #334155;">
-                <div>⏱ Thời gian: <span id="timer">00:00:00</span></div>
-                <div>🛣 Quãng đường: <span id="km">0.00</span> km</div>
+        <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border-radius: 20px; padding: 22px 16px; margin-bottom: 16px; text-align: center; box-shadow: 0 10px 25px rgba(2, 44, 34, 0.2);">
+            <div style="color: #34d399; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;" id="status_label">ĐỒNG HỒ TÍNH CƯỚC THỜI GIAN THỰC</div>
+            <div id="price" style="color: #ffffff; font-size: 44px; font-weight: 900; margin: 6px 0; letter-spacing: -1px;">0 VNĐ</div>
+            <div style="display: flex; justify-content: space-around; margin-top: 14px; font-size: 14px; font-weight: 700; color: #e2e8f0; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+                <div>⏱ <span id="timer">00:00:00</span></div>
+                <div>🛣 <span id="km">0.00</span> km</div>
             </div>
-            <div id="rate_desc" style="color: #64748b; font-size: 13px; margin-top: 6px; font-weight: 600;">Đơn giá: Miễn phí dưới 3km</div>
+            <div id="rate_desc" style="color: #a7f3d0; font-size: 13px; margin-top: 10px; font-weight: 600;">Đơn giá: Miễn phí dưới 3km</div>
         </div>
         
-        <div style="display: flex; gap: 12px; margin-bottom: 10px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);">
+        <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3); transition: transform 0.1s;">
                 ⏸ TẠM DỪNG
             </button>
-            <a id="btnStop" href="#" onclick="handleStop(event)" target="_top" style="display: flex; justify-content: center; align-items: center; flex: 1; background: #dc2626; color: white; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 900; text-decoration: none; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
-                🔴 KẾT THÚC CHUYẾN
+            <a id="btnStop" href="#" onclick="handleStop(event)" target="_top" style="display: flex; justify-content: center; align-items: center; flex: 1; background: #dc2626; color: white; border-radius: 16px; padding: 14px; font-size: 16px; font-weight: 800; text-decoration: none; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3); transition: transform 0.1s;">
+                🔴 KẾT THÚC
             </a>
         </div>
-        <div id="debug_acc" style="font-size: 12px; color: #64748b; font-weight: 600;">GPS: Đang bắt vệ tinh chính xác...</div>
+        <div id="debug_acc" style="text-align: center; font-size: 12px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
     </div>
 
     <script>
@@ -368,7 +404,6 @@ else:
         document.getElementById("price").innerText = calculateFareJS(km).toLocaleString('vi-VN') + " VNĐ";
         document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
 
-        // Cập nhật sẵn link href để trình duyệt di động nhận diện chuẩn xác hành động native click
         let baseUrl = window.location.href.split('?')[0];
         try {{
             if (window.parent && window.parent.location) {{
@@ -398,15 +433,15 @@ else:
         if (isPaused) {{
             btn.innerText = "▶️ TIẾP TỤC";
             btn.style.background = "#2563eb";
-            label.innerText = "⏸ ĐANG TẠM DỪNG";
-            label.style.color = "#d97706";
+            label.innerText = "⏸ ĐANG TẠM DỪNG GPS";
+            label.style.color = "#fbbf24";
             showToast("⏸ Đã tạm dừng đo GPS.", "#d97706");
         }} else {{
             btn.innerText = "⏸ TẠM DỪNG";
             btn.style.background = "#d97706";
-            label.innerText = "🟢 HÀNH TRÌNH ĐANG ĐO GPS";
-            label.style.color = "#166534";
-            showToast("▶️ Đã tiếp tục hành trình.", "#00A86B");
+            label.innerText = "🟢 ĐỒNG HỒ TÍNH CƯỚC THỜI GIAN THỰC";
+            label.style.color = "#34d399";
+            showToast("▶️ Tiếp tục hành trình.", "#059669");
         }}
     }}
 
@@ -450,8 +485,7 @@ else:
         vibrate(90);
         localStorage.removeItem("xeom_v4_meters");
         localStorage.removeItem("xeom_v4_seconds");
-        // Link sẽ tự động mở target="_top" theo thuộc tính href đã được update liên tục!
     }}
     </script>
     """
-    components.html(html_live_tracker, height=350)
+    components.html(html_live_tracker, height=330)
