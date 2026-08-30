@@ -250,9 +250,9 @@ if not st.session_state["trip_active"]:
 else:
     st.markdown(
         f"""
-        <div style="background: #ffffff; border: 2px solid #00A86B; border-radius: 16px; padding: 16px; margin-bottom: 14px;">
-            <div style="color: #00A86B; font-size: 14px; font-weight: 800; text-transform: uppercase;">🟢 BƯỚC 2: HÀNH TRÌNH ĐANG DIỄN RA</div>
-            <div style="font-size: 15px; color: #334155; margin-top: 6px;">Khách: <b>{st.session_state.get('cust_name', 'Khách vãng lai')}</b> | SĐT: <b>{st.session_state.get('cust_phone', '---')}</b></div>
+        <div style="background: #ffffff; border: 2px solid #00A86B; border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;">
+            <div style="color: #00A86B; font-size: 13px; font-weight: 800; text-transform: uppercase;">🟢 BƯỚC 2: HÀNH TRÌNH ĐANG DIỄN RA</div>
+            <div style="font-size: 14px; color: #334155; margin-top: 4px;">Khách: <b>{st.session_state.get('cust_name', 'Khách vãng lai')}</b> | SĐT: <b>{st.session_state.get('cust_phone', '---')}</b></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -260,27 +260,28 @@ else:
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
     
+    # Tăng chiều cao của component html lên 310px để hiển thị đầy đủ các nút bấm to, rõ
     html_live_tracker = f"""
-    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 10px; background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; text-align: center;">
-        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 16px; margin-bottom: 12px;">
-            <div style="color: #166534; font-size: 13px; font-weight: 800; text-transform: uppercase;" id="status_label">HÀNH TRÌNH ĐANG CHẠY</div>
-            <div id="price" style="color: #0f172a; font-size: 40px; font-weight: 900; margin: 4px 0;">0 VNĐ</div>
-            <div style="display: flex; justify-content: space-around; margin-top: 8px; font-size: 14px; font-weight: 700; color: #334155;">
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; text-align: center;">
+        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 12px; margin-bottom: 10px;">
+            <div style="color: #166534; font-size: 12px; font-weight: 800; text-transform: uppercase;" id="status_label">HÀNH TRÌNH ĐANG CHẠY</div>
+            <div id="price" style="color: #0f172a; font-size: 36px; font-weight: 900; margin: 2px 0;">0 VNĐ</div>
+            <div style="display: flex; justify-content: space-around; margin-top: 6px; font-size: 13px; font-weight: 700; color: #334155;">
                 <div>⏱ Thời gian: <span id="timer">00:00:00</span></div>
                 <div>🛣 Quãng đường: <span id="km">0.00</span> km</div>
             </div>
-            <div style="color: #64748b; font-size: 13px; margin-top: 4px;">Đơn giá: {DONG_GIA:,.0f} đ/km</div>
+            <div style="color: #64748b; font-size: 12px; margin-top: 2px;">Đơn giá: {DONG_GIA:,.0f} đ/km</div>
         </div>
         
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);">
+        <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);">
                 ⏸ TẠM DỪNG
             </button>
-            <button id="btnStop" onclick="stopTripNow()" style="flex: 1; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
+            <button id="btnStop" onclick="stopTripNow()" style="flex: 1; background: #dc2626; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
                 🔴 KẾT THÚC CHUYẾN
             </button>
         </div>
-        <div id="debug_acc" style="font-size: 12px; color: #64748b;">GPS: Đang định vị vệ tinh...</div>
+        <div id="debug_acc" style="font-size: 11px; color: #64748b;">GPS: Đang định vị vệ tinh...</div>
     </div>
 
     <script>
@@ -289,7 +290,6 @@ else:
     let totalMeters = parseFloat(localStorage.getItem("xeom_total_meters") || "0.0");
     const dongGia = {DONG_GIA};
 
-    // Cập nhật hiển thị ban đầu nếu có lưu từ trước
     updateUI();
 
     function updateUI() {{
@@ -304,7 +304,6 @@ else:
         document.getElementById("price").innerText = Math.round(km * dongGia).toLocaleString('vi-VN') + " VNĐ";
     }}
 
-    // Đồng hồ đếm thời gian (tự dừng khi bấm Tạm Dừng)
     setInterval(function() {{
         if (!isPaused) {{
             secondsElapsed++;
@@ -351,7 +350,6 @@ else:
                 if (acc > {GPS_ACCURACY_MAX_M}) return;
                 if (lastLat === null) {{ lastLat = lat; lastLon = lon; return; }}
                 
-                // Nếu đang tạm dừng thì không cộng quãng đường di chuyển
                 if (!isPaused) {{
                     let d = calcCrow(lastLat, lastLon, lat, lon);
                     if (d >= {MIN_MOVE_M} && d < 120) {{
@@ -385,4 +383,4 @@ else:
     }}
     </script>
     """
-    components.html(html_live_tracker, height=220)
+    components.html(html_live_tracker, height=310)
