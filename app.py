@@ -225,10 +225,32 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     append_row_to_sheet("DATA_4567", row_data)
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
     
-    # HIỂN THỊ HÓA ĐƠN CHI TIẾT (BILL) CHO KHÁCH & TÀI XẾ
-    st.markdown(
-        f"""
-        <div class="pro-card" style="border: 2px solid #059669; background: #ffffff;">
+    # HIỂN THỊ HÓA ĐƠN CHI TIẾT (BILL) DÙNG COMPONENTS.HTML TRÁNH LỖI HIỂN THỊ
+    invoice_html = f"""
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
+        <style>
+            .back-btn {{
+                width: 100%;
+                border: none;
+                border-radius: 16px;
+                padding: 16px;
+                font-size: 16px;
+                font-weight: 800;
+                background-color: #059669;
+                color: white;
+                cursor: pointer;
+                box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
+                transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            }}
+            .back-btn:hover {{
+                filter: brightness(1.05);
+                transform: translateY(-2px);
+            }}
+            .back-btn:active {{
+                transform: scale(0.97);
+            }}
+        </style>
+        <div style="background: #ffffff; border-radius: 20px; padding: 20px; border: 2px solid #059669; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 14px;">
             <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 14px; margin-bottom: 14px;">
                 <div style="font-size: 36px;">🧾</div>
                 <div style="font-size: 20px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
@@ -272,15 +294,22 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
                 <div style="font-size: 11px; color: #10b981; font-weight: 700; margin-top: 4px;">✅ Đã thanh toán & đồng bộ lên Google Sheets</div>
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-    if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
-        st.session_state.clear()
-        st.query_params.clear()
-        st.rerun()
+        <button class="back-btn" onclick="goHome()">⬅️ QUAY LẠI MÀN HÌNH CHÍNH</button>
+    </div>
+    <script>
+    function goHome() {{
+        if (navigator.vibrate) {{ navigator.vibrate(50); }}
+        let baseUrl = window.location.href.split('?')[0];
+        try {{
+            if (window.parent && window.parent.location) {{
+                baseUrl = window.parent.location.href.split('?')[0];
+            }}
+        }} catch(err) {{}}
+        window.open(baseUrl, '_self');
+    }}
+    </script>
+    """
+    components.html(invoice_html, height=520)
     st.stop()
 
 # ============================================================
@@ -568,11 +597,7 @@ else:
         
         showToast("Đang xử lý thanh toán...", "#059669");
         
-        window.open(targetUrl, '_blank');
-        
-        setTimeout(() => {{
-            window.location.reload();
-        }}, 1500);
+        window.open(targetUrl, '_self');
     }}
     </script>
     """
