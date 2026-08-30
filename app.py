@@ -80,13 +80,36 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         return False
 
 # ============================================================
-# CSS GIAO DIỆN TO, RÕ, DỄ BẤM CHO CÁC BÁC TÀI
+# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG MỚI
+# ============================================================
+def calculate_fare(km):
+    if km < 3.0:
+        return 0
+    elif km < 11.0:
+        return round(km * 4500)
+    elif km < 40.0:
+        return round(km * 4000)
+    else:
+        return round(km * 5500)
+
+def get_current_unit_price_desc(km):
+    if km < 3.0:
+        return "0 đ/km (Miễn phí < 3km)"
+    elif km < 11.0:
+        return "4,500 đ/km (3km - dưới 11km)"
+    elif km < 40.0:
+        return "4,000 đ/km (11km - dưới 40km)"
+    else:
+        return "5,500 đ/km (Từ 40km trở lên)"
+
+# ============================================================
+# CSS GIAO DIỆN TO, RÕ, ĐÃ KHẮC PHỤC LỖI KHUNG HÌNH DI ĐỘNG
 # ============================================================
 st.markdown(
     """
     <style>
     .stApp { background-color: #f1f5f9; }
-    .block-container { max-width: 650px; padding-top: 1rem; padding-bottom: 2rem; padding-left: 1rem; padding-right: 1rem; }
+    .block-container { max-width: 650px; padding-top: 2rem; padding-bottom: 2rem; padding-left: 1rem; padding-right: 1rem; }
     .driver-header { background: linear-gradient(135deg, #00A86B 0%, #007A4D 100%); padding: 18px 20px; border-radius: 16px; color: white; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(0, 168, 107, 0.2); }
     .driver-name { font-size: 20px; font-weight: 900; margin: 0; color: white; }
     .driver-phone { font-size: 14px; margin-top: 4px; color: #e2e8f0; font-weight: 600; }
@@ -115,7 +138,6 @@ for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-DONG_GIA = 5000
 GPS_ACCURACY_MAX_M = 60
 MIN_MOVE_M = 4
 
@@ -146,13 +168,13 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
     km_val = round(dist_val / 1000.0, 2)
-    fare_val = round(km_val * DONG_GIA)
+    fare_val = calculate_fare(km_val)
     
     stt = get_next_stt("DATA_4567")
     row_data = [
         stt, trip_id, start_time_str, end_time_str, total_time_str,
         cname, cphone, fare_val, st.session_state.get('user_name', 'Tài xế'),
-        DONG_GIA, km_val, fare_val, "HOÀN THÀNH CUỐC XE"
+        get_current_unit_price_desc(km_val), km_val, fare_val, "HOÀN THÀNH CUỐC XE"
     ]
     
     # Đẩy dữ liệu lên Google Sheets
@@ -239,7 +261,7 @@ if not st.session_state["trip_active"]:
         cache_row = [
             stt_cache, st.session_state["trip_id"], start_time_str, "---", "---",
             st.session_state["cust_name"], st.session_state["cust_phone"], 0,
-            st.session_state['user_name'], DONG_GIA, 0, 0, "BẮT ĐẦU CUỐC"
+            st.session_state['user_name'], "---", 0, 0, "BẮT ĐẦU CUỐC"
         ]
         append_row_to_sheet("CACHE_4567", cache_row)
         st.rerun()
@@ -260,7 +282,7 @@ else:
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
     
-    # Tăng chiều cao của component html lên 310px để hiển thị đầy đủ các nút bấm to, rõ
+    # Khung HTML live tracker với chiều cao được tối ưu (340px) để hiển thị đầy đủ trên mobile
     html_live_tracker = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; text-align: center;">
         <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 12px; margin-bottom: 10px;">
@@ -270,7 +292,7 @@ else:
                 <div>⏱ Thời gian: <span id="timer">00:00:00</span></div>
                 <div>🛣 Quãng đường: <span id="km">0.00</span> km</div>
             </div>
-            <div style="color: #64748b; font-size: 12px; margin-top: 2px;">Đơn giá: {DONG_GIA:,.0f} đ/km</div>
+            <div id="rate_desc" style="color: #64748b; font-size: 12px; margin-top: 4px;">Đơn giá: Miễn phí dưới 3km</div>
         </div>
         
         <div style="display: flex; gap: 10px; margin-bottom: 8px;">
@@ -288,7 +310,20 @@ else:
     let isPaused = false;
     let secondsElapsed = parseInt(localStorage.getItem("xeom_seconds") || "0");
     let totalMeters = parseFloat(localStorage.getItem("xeom_total_meters") || "0.0");
-    const dongGia = {DONG_GIA};
+
+    function calculateFareJS(km) {{
+        if (km < 3.0) return 0;
+        if (km < 11.0) return Math.round(km * 4500);
+        if (km < 40.0) return Math.round(km * 4000);
+        return Math.round(km * 5500);
+    }}
+
+    function getRateDescJS(km) {{
+        if (km < 3.0) return "0 đ/km (Miễn phí < 3km)";
+        if (km < 11.0) return "4,500 đ/km (3km - dưới 11km)";
+        if (km < 40.0) return "4,000 đ/km (11km - dưới 40km)";
+        return "5,500 đ/km (Từ 40km trở lên)";
+    }}
 
     updateUI();
 
@@ -301,7 +336,8 @@ else:
         
         let km = totalMeters / 1000.0;
         document.getElementById("km").innerText = km.toFixed(2);
-        document.getElementById("price").innerText = Math.round(km * dongGia).toLocaleString('vi-VN') + " VNĐ";
+        document.getElementById("price").innerText = calculateFareJS(km).toLocaleString('vi-VN') + " VNĐ";
+        document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
     }}
 
     setInterval(function() {{
@@ -383,4 +419,4 @@ else:
     }}
     </script>
     """
-    components.html(html_live_tracker, height=310)
+    components.html(html_live_tracker, height=340)
