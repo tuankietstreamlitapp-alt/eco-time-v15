@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.0)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v4.1)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -80,7 +80,7 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         return False
 
 # ============================================================
-# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG CHUẨN (v4.0)
+# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG CHUẨN
 # ============================================================
 def calculate_fare(km):
     if km < 3.0:
@@ -123,13 +123,6 @@ st.markdown(
         color: white !important; 
         border: none !important; 
         box-shadow: 0 4px 12px rgba(0, 168, 107, 0.25);
-        transition: transform 0.1s ease, background-color 0.1s ease !important;
-    }
-    div.stButton > button:active { 
-        transform: scale(0.97) !important; 
-    }
-    div.stButton > button:hover { 
-        background-color: #008f5a !important; 
     }
     input { font-size: 18px !important; font-weight: 700 !important; }
     </style>
@@ -208,14 +201,13 @@ if not st.session_state["logged_in"]:
         """
         <div style="text-align: center; padding: 20px 0 10px 0;">
             <div style="font-size: 42px;">🛵</div>
-            <div style="font-size: 24px; font-weight: 900; color: #0f172a; margin-top: 6px;">4567 XE ÔM (v4.0)</div>
+            <div style="font-size: 24px; font-weight: 900; color: #0f172a; margin-top: 6px;">4567 XE ÔM (v4.1)</div>
             <div style="font-size: 14px; color: #64748b; font-weight: 600;">Hệ thống định vị & tính cước tự động</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     
-    st.markdown("### 🔐 Đăng nhập tài khoản tài xế")
     phone_input = st.text_input("Số điện thoại tài xế:", placeholder="Ví dụ: 0978666620")
     
     if st.button("ĐĂNG NHẬP HỆ THỐNG", use_container_width=True):
@@ -281,13 +273,13 @@ if not st.session_state["trip_active"]:
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (v4.0)
+# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH GPS TỰ ĐỘNG (v4.1 FIXED)
 # ============================================================
 else:
     st.markdown(
         f"""
         <div style="background: #ffffff; border: 2px solid #00A86B; border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;">
-            <div style="color: #00A86B; font-size: 14px; font-weight: 800; text-transform: uppercase;">🟢 BƯỚC 2: HÀNH TRÌNH GPS ĐANG CHẠY</div>
+            <div style="color: #00A86B; font-size: 14px; font-weight: 800; text-transform: uppercase;">🟢 BƯỚC 2: HÀNH TRÌNH GPS Đang CHẠY</div>
             <div style="font-size: 15px; color: #334155; margin-top: 6px;">Khách: <b>{st.session_state.get('cust_name', 'Khách vãng lai')}</b> | SĐT: <b>{st.session_state.get('cust_phone', '---')}</b></div>
         </div>
         """,
@@ -295,6 +287,8 @@ else:
     )
 
     current_start_ts = st.session_state.get('trip_started_at', time.time())
+    cname_val = st.session_state.get('cust_name', 'Khách vãng lai')
+    cphone_val = st.session_state.get('cust_phone', '')
     
     html_live_tracker = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; text-align: center; position: relative;">
@@ -314,10 +308,10 @@ else:
         </div>
         
         <div style="display: flex; gap: 12px; margin-bottom: 10px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3); transition: transform 0.1s;">
+            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);">
                 ⏸ TẠM DỪNG
             </button>
-            <a id="btnStop" href="#" onclick="prepareStop(event)" target="_top" style="display: flex; justify-content: center; align-items: center; flex: 1; background: #dc2626; color: white; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 900; text-decoration: none; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
+            <a id="btnStop" href="#" onclick="handleStop(event)" target="_top" style="display: flex; justify-content: center; align-items: center; flex: 1; background: #dc2626; color: white; border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 900; text-decoration: none; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
                 🔴 KẾT THÚC CHUYẾN
             </a>
         </div>
@@ -328,11 +322,12 @@ else:
     let isPaused = false;
     let secondsElapsed = parseInt(localStorage.getItem("xeom_v4_seconds") || "0");
     let totalMeters = parseFloat(localStorage.getItem("xeom_v4_meters") || "0.0");
+    let startTimestamp = {current_start_ts};
+    let customerName = "{cname_val}";
+    let customerPhone = "{cphone_val}";
 
     function vibrate(duration = 50) {{
-        if (navigator.vibrate) {{
-            navigator.vibrate(duration);
-        }}
+        if (navigator.vibrate) {{ navigator.vibrate(duration); }}
     }}
 
     function showToast(text, bg = "#0f172a") {{
@@ -361,8 +356,6 @@ else:
         return "5,500 đ/km (Từ 40km trở lên)";
     }}
 
-    updateUI();
-
     function updateUI() {{
         let hh = Math.floor(secondsElapsed / 3600);
         let mm = Math.floor((secondsElapsed % 3600) / 60);
@@ -374,7 +367,20 @@ else:
         document.getElementById("km").innerText = km.toFixed(2);
         document.getElementById("price").innerText = calculateFareJS(km).toLocaleString('vi-VN') + " VNĐ";
         document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
+
+        // Cập nhật sẵn link href để trình duyệt di động nhận diện chuẩn xác hành động native click
+        let baseUrl = window.location.href.split('?')[0];
+        try {{
+            if (window.parent && window.parent.location) {{
+                baseUrl = window.parent.location.href.split('?')[0];
+            }}
+        }} catch(err) {{}}
+
+        let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
+        document.getElementById("btnStop").href = targetUrl;
     }}
+
+    updateUI();
 
     setInterval(function() {{
         if (!isPaused) {{
@@ -440,24 +446,11 @@ else:
         );
     }}
 
-    function prepareStop(e) {{
-        e.preventDefault();
+    function handleStop(e) {{
         vibrate(90);
-        
-        let finalDist = localStorage.getItem("xeom_v4_meters") || "0";
         localStorage.removeItem("xeom_v4_meters");
         localStorage.removeItem("xeom_v4_seconds");
-        
-        let baseUrl = window.location.href.split('?')[0];
-        try {{ 
-            if (window.parent && window.parent.location) {{ 
-                baseUrl = window.parent.location.href.split('?')[0]; 
-            }} 
-        }} catch(err) {{}}
-        
-        let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cname=" + encodeURIComponent("{st.session_state.get('cust_name','')}") + "&cphone=" + encodeURIComponent("{st.session_state.get('cust_phone','')}");
-        
-        window.top.location.href = targetUrl;
+        // Link sẽ tự động mở target="_top" theo thuộc tính href đã được update liên tục!
     }}
     </script>
     """
