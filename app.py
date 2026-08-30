@@ -1,16 +1,14 @@
 import math
 import time
 import datetime
-import urllib.parse
 import gspread
 import pandas as pd
 import pytz
 import streamlit as st
-import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v2.0)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v3.0)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -66,21 +64,8 @@ def append_row_to_sheet(tab_name, row_values):
     except Exception as e:
         return False
 
-def delete_row_from_sheet(tab_name, col_name, target_val):
-    try:
-        ws, records = get_worksheet_data(tab_name)
-        if ws is None or not records:
-            return False
-        for i, row in enumerate(records, start=2):
-            if str(row.get(col_name, "")) == str(target_val):
-                ws.delete_rows(i)
-                return True
-        return False
-    except Exception as e:
-        return False
-
 # ============================================================
-# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG CHUẨN (v2.0)
+# HÀM TÍNH CƯỚC THEO BIỂU GIÁ BẬC THANG CHUẨN (v3.0)
 # ============================================================
 def calculate_fare(km):
     if km < 3.0:
@@ -103,7 +88,7 @@ def get_current_unit_price_desc(km):
         return "5,500 đ/km (Từ 40km trở lên)"
 
 # ============================================================
-# CSS GIAO DIỆN TỐI ƯU TRẢI NGHIỆM (UI/UX)
+# CSS GIAO DIỆN TỐI ƯU TRẢI NGHIỆM (UI/UX CHUYÊN NGHIỆP)
 # ============================================================
 st.markdown(
     """
@@ -154,52 +139,6 @@ for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-GPS_ACCURACY_MAX_M = 50
-MIN_MOVE_M = 3
-
-# ============================================================
-# XỬ LÝ KẾT THÚC CUỐC XE & LƯU TRỮ ĐỒNG BỘ
-# ============================================================
-if "action" in st.query_params and st.query_params["action"] == "stop":
-    try:
-        dist_val = float(st.query_params.get("dist", 0.0))
-    except (TypeError, ValueError):
-        dist_val = 0.0
-
-    try:
-        start_ts = float(st.query_params.get("start", time.time()))
-    except (TypeError, ValueError):
-        start_ts = time.time()
-
-    end_ts = time.time()
-    cname = st.query_params.get("cname", "Khách vãng lai")
-    cphone = st.query_params.get("cphone", "")
-    trip_id = f"C4567_{int(start_ts)}"
-
-    start_time_str = get_vn_time(start_ts)
-    end_time_str = get_vn_time(end_ts)
-    
-    time_diff = max(0, int(end_ts - start_ts))
-    hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
-    total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
-
-    km_val = round(dist_val / 1000.0, 2)
-    fare_val = calculate_fare(km_val)
-    
-    stt = get_next_stt("DATA_4567")
-    row_data = [
-        stt, trip_id, start_time_str, end_time_str, total_time_str,
-        cname, cphone, fare_val, st.session_state.get('user_name', 'Tài xế'),
-        get_current_unit_price_desc(km_val), km_val, fare_val, "HOÀN THÀNH CUỐC XE"
-    ]
-    
-    append_row_to_sheet("DATA_4567", row_data)
-    delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-    
-    st.session_state.clear()
-    st.query_params.clear()
-    st.rerun()
-
 # ============================================================
 # MÀN HÌNH 1: ĐĂNG NHẬP TÀI XẾ
 # ============================================================
@@ -208,8 +147,8 @@ if not st.session_state["logged_in"]:
         """
         <div style="text-align: center; padding: 20px 0 10px 0;">
             <div style="font-size: 38px;">🛵</div>
-            <div style="font-size: 22px; font-weight: 900; color: #0f172a; margin-top: 4px;">4567 XE ÔM (v2.0)</div>
-            <div style="font-size: 13px; color: #64748b;">Hệ thống quản lý cuốc xe chuyên nghiệp</div>
+            <div style="font-size: 22px; font-weight: 900; color: #0f172a; margin-top: 4px;">4567 XE ÔM (v3.0 NATIVE)</div>
+            <div style="font-size: 13px; color: #64748b;">Hệ thống quản lý chuyên nghiệp & ổn định tuyệt đối</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -235,7 +174,7 @@ if not st.session_state["logged_in"]:
                     st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
                     st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Tài xế"))
                     st.success(f"Chào bác **{st.session_state['user_name']}**! Đang chuyển vào giao diện chính...")
-                    time.sleep(0.6)
+                    time.sleep(0.5)
                     st.rerun()
                 else:
                     st.error("❌ Số điện thoại không đúng hoặc chưa được cấp quyền!")
@@ -269,19 +208,10 @@ if not st.session_state["trip_active"]:
         st.session_state["cust_name"] = cust_name_in.strip() if cust_name_in.strip() else "Khách vãng lai"
         st.session_state["cust_phone"] = cust_phone_in.strip()
         st.session_state["trip_id"] = f"C4567_{int(st.session_state['trip_started_at'])}"
-        
-        start_time_str = get_vn_time(st.session_state["trip_started_at"])
-        stt_cache = get_next_stt("CACHE_4567")
-        cache_row = [
-            stt_cache, st.session_state["trip_id"], start_time_str, "---", "---",
-            st.session_state["cust_name"], st.session_state["cust_phone"], 0,
-            st.session_state['user_name'], "---", 0, 0, "BẮT ĐẦU CUỐC"
-        ]
-        append_row_to_sheet("CACHE_4567", cache_row)
         st.rerun()
 
 # ============================================================
-# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH TRỰC TUYẾN
+# MÀN HÌNH 3: THEO DÕI HÀNH TRÌNH & KẾT THÚC (100% PYTHON NATIVE)
 # ============================================================
 else:
     st.markdown(
@@ -289,176 +219,99 @@ else:
         <div style="background: #ffffff; border: 2px solid #00A86B; border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;">
             <div style="color: #00A86B; font-size: 13px; font-weight: 800; text-transform: uppercase;">🟢 BƯỚC 2: HÀNH TRÌNH ĐANG DIỄN RA</div>
             <div style="font-size: 14px; color: #334155; margin-top: 4px;">Khách: <b>{st.session_state.get('cust_name', 'Khách vãng lai')}</b> | SĐT: <b>{st.session_state.get('cust_phone', '---')}</b></div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Thời điểm xuất phát: <b>{get_vn_time(st.session_state['trip_started_at'])}</b></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    current_start_ts = st.session_state.get('trip_started_at', time.time())
-    
-    html_live_tracker = f"""
-    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px; background: #ffffff; border-radius: 16px; text-align: center; position: relative;">
-        <!-- Toast Notification Banner -->
-        <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 10px; padding: 10px 16px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 75px; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
-            Thông báo
+    # Tính thời gian đã trôi qua
+    elapsed_sec = int(time.time() - st.session_state['trip_started_at'])
+    hh, mm, ss = elapsed_sec // 3600, (elapsed_sec % 3600) // 60, elapsed_sec % 60
+    time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
+
+    st.markdown(
+        f"""
+        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 16px; text-align: center; margin-bottom: 14px;">
+            <div style="color: #166534; font-size: 12px; font-weight: 800; text-transform: uppercase;">⏱ THỜI GIAN CHUYẾN ĐI</div>
+            <div style="color: #0f172a; font-size: 38px; font-weight: 900; margin: 4px 0;">{time_str}</div>
         </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; padding: 12px; margin-bottom: 10px;">
-            <div style="color: #166534; font-size: 12px; font-weight: 800; text-transform: uppercase;" id="status_label">HÀNH TRÌNH ĐANG CHẠY</div>
-            <div id="price" style="color: #0f172a; font-size: 36px; font-weight: 900; margin: 2px 0;">0 VNĐ</div>
-            <div style="display: flex; justify-content: space-around; margin-top: 6px; font-size: 13px; font-weight: 700; color: #334155;">
-                <div>⏱ Thời gian: <span id="timer">00:00:00</span></div>
-                <div>🛣 Quãng đường: <span id="km">0.00</span> km</div>
-            </div>
-            <div id="rate_desc" style="color: #64748b; font-size: 12px; margin-top: 4px;">Đơn giá: Miễn phí dưới 3km</div>
+    st.markdown("### 🛣 Nhập quãng đường thực tế (km)")
+    km_input = st.number_input(
+        "Số kilomet chạy được (đọc từ đồng hồ xe hoặc định mức):",
+        min_value=0.0,
+        max_value=500.0,
+        value=0.0,
+        step=0.1,
+        format="%.1f"
+    )
+
+    # Tính cước tạm tính ngay lập tức để minh bạch với khách
+    current_fare = calculate_fare(km_input)
+    current_desc = get_current_unit_price_desc(km_input)
+
+    st.markdown(
+        f"""
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 14px; padding: 14px; margin-bottom: 16px; text-align: center;">
+            <div style="font-size: 12px; color: #64748b; font-weight: 700;">CƯỚC PHÍ TẠM TÍNH</div>
+            <div style="font-size: 32px; font-weight: 900; color: #00A86B; margin: 2px 0;">{current_fare:,.0f} VNĐ</div>
+            <div style="font-size: 12px; color: #475569; font-weight: 600;">Đơn giá: {current_desc}</div>
         </div>
-        
-        <div style="display: flex; gap: 10px; margin-bottom: 8px;">
-            <button id="btnPause" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; cursor: pointer; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3); transition: transform 0.1s;">
-                ⏸ TẠM DỪNG
-            </button>
-            <a id="btnStop" href="#" onclick="stopTripSync(event)" style="display: flex; justify-content: center; align-items: center; flex: 1; background: #dc2626; color: white; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 900; text-decoration: none; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
-                🔴 KẾT THÚC CHUYẾN
-            </a>
-        </div>
-        <div id="debug_acc" style="font-size: 11px; color: #64748b;">GPS: Đang định vị vệ tinh...</div>
-    </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    <script>
-    let isPaused = false;
-    let secondsElapsed = parseInt(localStorage.getItem("xeom_v2_seconds") || "0");
-    let totalMeters = parseFloat(localStorage.getItem("xeom_v2_meters") || "0.0");
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 LÀM MỚI GIỜ", use_container_width=True):
+            st.rerun()
+    with col2:
+        pass
 
-    function vibrate(duration = 40) {{
-        if (navigator.vibrate) {{
-            navigator.vibrate(duration);
-        }}
-    }}
-
-    function showToast(text, bg = "#0f172a") {{
-        let t = document.getElementById("toast_msg");
-        t.innerText = text;
-        t.style.backgroundColor = bg;
-        t.style.visibility = "visible";
-        t.style.opacity = "1";
-        setTimeout(() => {{
-            t.style.opacity = "0";
-            t.style.visibility = "hidden";
-        }}, 3000);
-    }}
-
-    function calculateFareJS(km) {{
-        if (km < 3.0) return 0;
-        if (km < 11.0) return Math.round(km * 4500);
-        if (km < 40.0) return Math.round(km * 4000);
-        return Math.round(km * 5500);
-    }}
-
-    function getRateDescJS(km) {{
-        if (km < 3.0) return "0 đ/km (Miễn phí < 3km)";
-        if (km < 11.0) return "4,500 đ/km (3km - dưới 11km)";
-        if (km < 40.0) return "4,000 đ/km (11km - dưới 40km)";
-        return "5,500 đ/km (Từ 40km trở lên)";
-    }}
-
-    updateUI();
-
-    function updateUI() {{
-        let hh = Math.floor(secondsElapsed / 3600);
-        let mm = Math.floor((secondsElapsed % 3600) / 60);
-        let ss = secondsElapsed % 60;
-        document.getElementById("timer").innerText = 
-            (hh < 10 ? "0" + hh : hh) + ":" + (mm < 10 ? "0" + mm : mm) + ":" + (ss < 10 ? "0" + ss : ss);
-        
-        let km = totalMeters / 1000.0;
-        document.getElementById("km").innerText = km.toFixed(2);
-        document.getElementById("price").innerText = calculateFareJS(km).toLocaleString('vi-VN') + " VNĐ";
-        document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
-    }}
-
-    setInterval(function() {{
-        if (!isPaused) {{
-            secondsElapsed++;
-            localStorage.setItem("xeom_v2_seconds", secondsElapsed);
-            updateUI();
-        }}
-    }}, 1000);
-
-    function togglePause() {{
-        vibrate(50);
-        isPaused = !isPaused;
-        let btn = document.getElementById("btnPause");
-        let label = document.getElementById("status_label");
-        if (isPaused) {{
-            btn.innerText = "▶️ TIẾP TỤC";
-            btn.style.background = "#2563eb";
-            label.innerText = "⏸ ĐANG TẠM DỪNG";
-            label.style.color = "#d97706";
-            showToast("⏸ Đã tạm dừng hành trình.", "#d97706");
-        }} else {{
-            btn.innerText = "⏸ TẠM DỪNG";
-            btn.style.background = "#d97706";
-            label.innerText = "🟢 HÀNH TRÌNH ĐANG CHẠY";
-            label.style.color = "#166534";
-            showToast("▶️ Đã tiếp tục hành trình.", "#00A86B");
-        }}
-    }}
-
-    function calcCrow(lat1, lon1, lat2, lon2) {{
-        var R = 6371000;
-        var dLat = (lat2 - lat1) * Math.PI / 180;
-        var dLon = (lon2 - lon1) * Math.PI / 180;
-        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }}
-
-    let lastLat = null, lastLon = null;
-
-    if ("geolocation" in navigator) {{
-        navigator.geolocation.watchPosition(
-            function(pos) {{
-                let lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy;
-                document.getElementById("debug_acc").innerText = "Độ chính xác GPS: ±" + acc.toFixed(1) + "m";
+    st.write("")
+    if st.button("🔴 XÁC NHẬN KẾT THÚC & LƯU CUỐC XE", use_container_width=True):
+        if km_input <= 0.0:
+            st.warning("⚠️ Bác ơi, vui lòng nhập số km thực tế trước khi kết thúc chuyến nhé!")
+        else:
+            with st.spinner("Đang lưu dữ liệu lên hệ thống..."):
+                end_ts = time.time()
+                start_ts = st.session_state['trip_started_at']
                 
-                if (acc > {GPS_ACCURACY_MAX_M}) return;
-                if (lastLat === null) {{ lastLat = lat; lastLon = lon; return; }}
+                start_time_str = get_vn_time(start_ts)
+                end_time_str = get_vn_time(end_ts)
                 
-                if (!isPaused) {{
-                    let d = calcCrow(lastLat, lastLon, lat, lon);
-                    if (d >= {MIN_MOVE_M} && d < 120) {{
-                        totalMeters += d;
-                        localStorage.setItem("xeom_v2_meters", totalMeters);
-                        updateUI();
-                    }}
-                }}
-                lastLat = lat; lastLon = lon;
-            }},
-            err => {{ document.getElementById("debug_acc").innerText = "Lỗi GPS: Vui lòng bật định vị điện thoại!"; }},
-            {{ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }}
-        );
-    }}
+                time_diff = max(0, int(end_ts - start_ts))
+                th, tm, ts = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
+                total_time_str = f"{th:02d}:{tm:02d}:{ts:02d}"
 
-    function stopTripSync(e) {{
-        e.preventDefault();
-        vibrate(80);
-        
-        let finalDist = localStorage.getItem("xeom_v2_meters") || "0";
-        localStorage.removeItem("xeom_v2_meters");
-        localStorage.removeItem("xeom_v2_seconds");
-        
-        let baseUrl = window.location.href.split('?')[0];
-        try {{ 
-            if (window.parent && window.parent.location) {{ 
-                baseUrl = window.parent.location.href.split('?')[0]; 
-            }} 
-        }} catch(err) {{}}
-        
-        let targetUrl = baseUrl + "?action=stop&dist=" + finalDist + "&start={current_start_ts}&cname=" + encodeURIComponent("{st.session_state.get('cust_name','')}") + "&cphone=" + encodeURIComponent("{st.session_state.get('cust_phone','')}");
-        
-        window.top.location.href = targetUrl;
-    }}
-    </script>
-    """
-    components.html(html_live_tracker, height=330)
+                km_val = round(km_input, 2)
+                fare_val = calculate_fare(km_val)
+                trip_id = st.session_state['trip_id']
+                cname = st.session_state['cust_name']
+                cphone = st.session_state['cust_phone']
+                driver_name = st.session_state['user_name']
+
+                stt = get_next_stt("DATA_4567")
+                row_data = [
+                    stt, trip_id, start_time_str, end_time_str, total_time_str,
+                    cname, cphone, fare_val, driver_name,
+                    get_current_unit_price_desc(km_val), km_val, fare_val, "HOÀN THÀNH CUỐC XE"
+                ]
+                
+                success = append_row_to_sheet("DATA_4567", row_data)
+                
+                if success:
+                    st.success("✅ Đã lưu cuốc xe thành công lên Google Sheets!")
+                    time.sleep(0.8)
+                    st.session_state["trip_active"] = False
+                    st.session_state["cust_name"] = ""
+                    st.session_state["cust_phone"] = ""
+                    st.session_state["trip_id"] = ""
+                    st.session_state["trip_started_at"] = None
+                    st.rerun()
+                else:
+                    st.error("❌ Lỗi kết nối Google Sheets! Vui lòng bấm lưu lại.")
