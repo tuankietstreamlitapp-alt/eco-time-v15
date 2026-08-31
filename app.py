@@ -163,10 +163,10 @@ st.markdown(
 )
 
 # ============================================================
-# KHỞI TẠO SESSION STATE QUẢN LÝ 3 CỬA SỔ
+# QUẢN LÝ TRẠNG THÁI 3 CỬA SỔ RIÊNG BIỆT
 # ============================================================
 if "step" not in st.session_state:
-    st.session_state["step"] = 1  # 1: Đăng nhập, 2: Nhận khách/GPS, 3: Bill chi tiết
+    st.session_state["step"] = 1  # 1: Đăng nhập, 2: Nhận khách & Đo GPS, 3: Hóa đơn chi tiết
 
 defaults = {
     "user_phone": "",
@@ -176,7 +176,9 @@ defaults = {
     "trip_id": "",
     "trip_started_at": None,
     "final_dist": 0.0,
-    "final_end_ts": None
+    "final_end_ts": None,
+    "trip_active_state": False,
+    "saved_to_sheet": False
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -185,9 +187,7 @@ for key, value in defaults.items():
 GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
 
-# ============================================================
-# BẮT TÍN HIỆU THANH TOÁN TỪ JAVASCRIPT ĐỂ CHUYỂN SANG CỬA SỔ 3
-# ============================================================
+# Bắt tín hiệu thanh toán từ JS đẩy qua query params
 if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
         st.session_state["final_dist"] = float(st.query_params.get("dist", 0.0))
@@ -205,13 +205,12 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     st.session_state["cust_phone"] = st.query_params.get("cphone", "")
     st.session_state["trip_id"] = f"C4567_{int(start_ts)}"
 
-    # Xóa query params trên URL để tránh lặp lại khi load lại trang
     st.query_params.clear()
     st.session_state["step"] = 3
     st.rerun()
 
 # ============================================================
-# CỬA SỔ 1: MÀN HÌNH ĐĂNG NHẬP TÀI XẾ
+# CỬA SỔ 1: MÀN HÌNH ĐĂNG NHẬP
 # ============================================================
 if st.session_state["step"] == 1:
     st.markdown(
@@ -243,7 +242,7 @@ if st.session_state["step"] == 1:
                 if matched_user:
                     st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
                     st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Tài xế"))
-                    st.session_state["step"] = 2  # Chuyển sang cửa sổ 2
+                    st.session_state["step"] = 2
                     st.success(f"Chào bác **{st.session_state['user_name']}**! Đang vào ứng dụng...")
                     time.sleep(0.4)
                     st.rerun()
@@ -252,7 +251,7 @@ if st.session_state["step"] == 1:
     st.stop()
 
 # ============================================================
-# HEADER CHUNG CHO CỬA SỔ 2 VÀ 3
+# HEADER CHUNG CHO CỬA SỔ 2 & 3
 # ============================================================
 st.markdown(
     f"""
@@ -265,11 +264,10 @@ st.markdown(
 )
 
 # ============================================================
-# CỬA SỔ 2: MÀN HÌNH NHẬP KHÁCH & ĐO GPS HÀNH TRÌNH
+# CỬA SỔ 2: NHẬP KHÁCH & ĐO GPS HÀNH TRÌNH
 # ============================================================
 if st.session_state["step"] == 2:
-    # Nếu chưa bắt đầu chuyến -> Hiển thị form nhập thông tin khách
-    if not st.session_state.get("trip_active_state", False):
+    if not st.session_state["trip_active_state"]:
         st.markdown(
             """
             <div class="pro-card">
@@ -299,7 +297,6 @@ if st.session_state["step"] == 2:
             append_row_to_sheet("CACHE_4567", cache_row)
             st.rerun()
     
-    # Đang trong chuyến -> Hiển thị đồng hồ GPS thời gian thực
     else:
         st.markdown(
             f"""
@@ -336,7 +333,6 @@ if st.session_state["step"] == 2:
                 }}
             </style>
 
-            <!-- Toast Notification -->
             <div id="toast_msg" style="visibility: hidden; background-color: #0f172a; color: #fff; text-align: center; border-radius: 12px; padding: 10px 16px; position: absolute; z-index: 100; left: 50%; transform: translateX(-50%); bottom: 85px; font-size: 13px; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: opacity 0.3s ease; opacity: 0;">
                 Thông báo
             </div>
@@ -501,7 +497,7 @@ if st.session_state["step"] == 2:
         components.html(html_live_tracker, height=310)
 
 # ============================================================
-# CỬA SỔ 3: MÀN HÌNH HÓA ĐƠN CHI TIẾT RIÊNG BIỆT
+# CỬA SỔ 3: HÓA ĐƠN CHI TIẾT ĐỘC LẬP
 # ============================================================
 elif st.session_state["step"] == 3:
     start_ts = st.session_state["trip_started_at"]
@@ -523,8 +519,8 @@ elif st.session_state["step"] == 3:
     driver_name_val = st.session_state.get('user_name', 'Tài xế')
     unit_desc = get_current_unit_price_desc(km_val)
     
-    # Lưu vào Google Sheets và xóa cache (chỉ chạy 1 lần khi vào step 3)
-    if not st.session_state.get("saved_to_sheet", False):
+    # Lưu vào Google Sheets chỉ 1 lần duy nhất
+    if not st.session_state["saved_to_sheet"]:
         stt = get_next_stt("DATA_4567")
         row_data = [
             stt, trip_id, start_time_str, end_time_str, total_time_str,
@@ -535,14 +531,14 @@ elif st.session_state["step"] == 3:
         delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
         st.session_state["saved_to_sheet"] = True
 
-    # Nút bấm quay lại màn hình chính trực tiếp bằng Streamlit (hoàn toàn mượt mà)
+    # Nút bấm quay về màn hình nhận khách
     if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
         st.session_state["trip_active_state"] = False
         st.session_state["saved_to_sheet"] = False
-        st.session_state["step"] = 2  # Quay lại cửa sổ nhận khách
+        st.session_state["step"] = 2
         st.rerun()
 
-    # Hiển thị hóa đơn chi tiết gọn gàng bên dưới
+    # Khung hóa đơn chi tiết
     invoice_html = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
         <div style="background: #ffffff; border-radius: 20px; padding: 18px 20px; border: 2px solid #059669; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 12px;">
