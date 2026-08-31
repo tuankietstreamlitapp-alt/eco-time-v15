@@ -41,6 +41,31 @@ def safe_html(value):
     return html.escape(str(value or ""), quote=True)
 
 
+def get_app_url():
+    """Lấy URL thật của trang Streamlit hiện tại từ backend, không phụ thuộc iframe."""
+    try:
+        url = str(getattr(st.context, "url", "") or "").strip()
+        if url:
+            return url.split("?", 1)[0].split("#", 1)[0]
+    except Exception:
+        pass
+
+    # Fallback cho môi trường Streamlit cũ hơn.
+    try:
+        headers = st.context.headers
+        host = str(headers.get("Host", "") or "").strip()
+        proto = str(headers.get("X-Forwarded-Proto", "https") or "https").split(",", 1)[0].strip()
+        if host:
+            return f"{proto}://{host}"
+    except Exception:
+        pass
+    return ""
+
+
+# URL này được lấy ở Python backend; JavaScript tuyệt đối không tự suy đoán URL từ iframe.
+APP_URL = get_app_url()
+
+
 # ============================================================
 # GOOGLE SHEETS
 # ============================================================
@@ -546,7 +571,7 @@ if st.session_state["step"] == 2:
 
             <div style="display:flex;gap:10px;margin-top:10px;">
                 <button id="pauseBtn" class="action-btn" onclick="togglePause()" style="flex:1;background:#d97706;color:#fff;">⏸ TẠM DỪNG</button>
-                <button id="payBtn" class="action-btn" onclick="handlePayment()" style="flex:1.2;background:#059669;color:#fff;">💵 THANH TOÁN</button>
+                <a id="payBtn" class="action-btn" href="#" target="_top" rel="noopener" onclick="handlePayment(event)" style="flex:1.2;background:#059669;color:#fff;text-decoration:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">💵 THANH TOÁN</a>
             </div>
 
             <div id="gps" style="text-align:center;font-size:12px;color:#64748b;font-weight:700;margin-top:8px;">📡 GPS: Đang bắt tín hiệu...</div>
@@ -558,6 +583,7 @@ if st.session_state["step"] == 2:
         const customerName = {customer_name_js};
         const customerPhone = {customer_phone_js};
         const pricingTiers = {tiers_json};
+        const appUrl = {json.dumps(APP_URL, ensure_ascii=False)};
 
         let isPaused = localStorage.getItem(tripStorageKey + ":paused") === "1";
         let totalMeters = parseFloat(localStorage.getItem(tripStorageKey + ":meters") || "0");
@@ -713,27 +739,17 @@ if st.session_state["step"] == 2:
 
         let paymentNavigating = false;
 
-        function handlePayment() {{
-            if (paymentNavigating) return;
+        function handlePayment(event) {{
+            if (paymentNavigating) return false;
+
             vibrate(90);
             syncClock();
             persist();
-            paymentNavigating = true;
 
-            // Không đọc window.top.location và tuyệt đối không dùng window.location
-            // của iframe. document.referrer chính là URL trang Streamlit đã nhúng component.
-            // Ta chỉ điều hướng TOP window bằng URL của trang cha, vì vậy không sinh
-            // thêm một Streamlit App bên trong App chính.
-            let appUrl = "";
-            try {{
-                if (document.referrer) {{
-                    const ref = new URL(document.referrer);
-                    ref.search = "";
-                    ref.hash = "";
-                    appUrl = ref.toString();
-                }}
-            }} catch (err) {{
-                appUrl = "";
+            // Tạo URL từ backend-provided appUrl. Không đọc window.top/location của iframe.
+            if (!appUrl) {{
+                toast("⚠️ Không xác định được địa chỉ ứng dụng. Cuốc xe vẫn được giữ nguyên.", "#b91c1c");
+                return false;
             }}
 
             const params = new URLSearchParams({{
@@ -746,30 +762,21 @@ if st.session_state["step"] == 2:
                 cphone: customerPhone
             }});
 
-            // KHÔNG xóa localStorage ở bước này.
-            // Dữ liệu phải còn nguyên cho tới khi giao dịch được xác nhận và lưu thành công.
-            toast("Đang mở xác nhận thanh toán...", "#059669");
+            const target = appUrl + "?" + params.toString();
             const payBtn = document.getElementById("payBtn");
+
+            // Không xóa localStorage tại đây. Chỉ chuyển trang sau khi đã lấy đủ dữ liệu.
+            paymentNavigating = true;
             if (payBtn) {{
-                payBtn.disabled = true;
+                payBtn.setAttribute("href", target);
+                payBtn.style.pointerEvents = "none";
                 payBtn.style.opacity = "0.7";
                 payBtn.innerText = "⏳ ĐANG MỞ THANH TOÁN...";
             }}
+            toast("Đang mở xác nhận thanh toán...", "#059669");
 
-            if (appUrl) {{
-                const target = appUrl + "?" + params.toString();
-                window.top.location.assign(target);
-            }} else {{
-                // document.referrer là nguồn an toàn nhất trong component.
-                // Nếu không có referrer, dừng thao tác thay vì điều hướng sai iframe.
-                paymentNavigating = false;
-                if (payBtn) {{
-                    payBtn.disabled = false;
-                    payBtn.style.opacity = "1";
-                    payBtn.innerText = "💵 THANH TOÁN";
-                }}
-                toast("⚠️ Không xác định được trang ứng dụng. Cuốc xe vẫn được giữ nguyên.", "#b91c1c");
-            }}
+            // Trình duyệt sẽ tiếp tục click <a target="_top"> tới href vừa được gán.
+            return true;
         }}
         </script>
         """
