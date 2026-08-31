@@ -2,6 +2,7 @@ import math
 import time
 import datetime
 import json
+import html
 import gspread
 import pandas as pd
 import pytz
@@ -46,6 +47,59 @@ def get_worksheet_data(tab_name):
         return ws, ws.get_all_records()
     except Exception as e:
         return None, []
+
+def trip_exists_in_sheet(tab_name, trip_id):
+    """Kiểm tra mã cuốc đã tồn tại để tránh ghi trùng khi mạng trả lỗi/timeout."""
+    try:
+        _, records = get_worksheet_data(tab_name)
+        target = str(trip_id).strip()
+        return any(str(row.get("MÃ CUỐC XE", "")).strip() == target for row in records)
+    except Exception:
+        return False
+
+
+def get_active_cache_for_driver(driver_name):
+    """Lấy cuốc chưa hoàn tất gần nhất để khôi phục sau refresh/mất phiên."""
+    try:
+        _, records = get_worksheet_data("CACHE_4567")
+        if not records:
+            return None
+
+        candidates = []
+        for row in records:
+            status = str(row.get("TRẠNG THÁI", "")).strip().upper()
+            row_driver = str(row.get("TÊN TÀI XẾ", "")).strip()
+            end_time = str(row.get("GIỜ KẾT THÚC", "")).strip()
+            if (row_driver == str(driver_name).strip()
+                    and status in {"BẮT ĐẦU CUỐC", "ĐANG CHẠY XE"}
+                    and end_time in {"", "---"}):
+                trip_id = str(row.get("MÃ CUỐC XE", "")).strip()
+                if trip_id:
+                    candidates.append(row)
+
+        if not candidates:
+            return None
+
+        # Chỉ đọc DATA_4567 một lần để tránh nhiều request Google Sheets.
+        _, data_records = get_worksheet_data("DATA_4567")
+        completed_ids = {
+            str(row.get("MÃ CUỐC XE", "")).strip()
+            for row in data_records
+            if str(row.get("MÃ CUỐC XE", "")).strip()
+        }
+        for row in reversed(candidates):
+            if str(row.get("MÃ CUỐC XE", "")).strip() not in completed_ids:
+                return row
+        return None
+    except Exception:
+        return None
+
+def get_trip_start_timestamp(trip_id, fallback=None):
+    try:
+        return float(str(trip_id).rsplit("_", 1)[-1])
+    except (ValueError, TypeError):
+        return fallback if fallback is not None else time.time()
+
 
 def get_next_stt(tab_name):
     try:
@@ -155,6 +209,10 @@ def get_current_unit_price_desc(km):
     if tiers:
         return tiers[-1]["desc"]
     return "Đơn giá chưa xác định"
+
+def safe_html(value):
+    return html.escape(str(value or ""), quote=True)
+
 
 # ============================================================
 # CSS GIAO DIỆN CHUYÊN NGHIỆP
@@ -297,11 +355,25 @@ if st.session_state["step"] == 1:
                 if matched_user:
                     st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
                     st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Tài xế"))
-                    st.session_state["step"] = 2
-                    
-                    update_driver_status(st.session_state["user_phone"], "Trực tuyến")
-                    
-                    st.success(f"Chào bác **{st.session_state['user_name']}**! Đang vào ứng dụng...")
+
+                    # Khôi phục cuốc đang chạy nếu phiên Streamlit/browser vừa bị mất.
+                    active_cache = get_active_cache_for_driver(st.session_state["user_name"])
+                    if active_cache:
+                        restored_trip_id = str(active_cache.get("MÃ CUỐC XE", "")).strip()
+                        restored_start = get_trip_start_timestamp(restored_trip_id)
+                        st.session_state["trip_id"] = restored_trip_id
+                        st.session_state["trip_started_at"] = restored_start
+                        st.session_state["cust_name"] = str(active_cache.get("TÊN KHÁCH HÀNG", "")).strip() or "Khách vãng lai"
+                        st.session_state["cust_phone"] = str(active_cache.get("SĐT KHÁCH HÀNG", "")).strip()
+                        st.session_state["trip_active_state"] = True
+                        st.session_state["saved_to_sheet"] = False
+                        st.session_state["step"] = 2
+                        update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
+                        st.info("🔄 Đã khôi phục cuốc đang chạy từ CACHE_4567.")
+                    else:
+                        st.session_state["step"] = 2
+                        update_driver_status(st.session_state["user_phone"], "Trực tuyến")
+                        st.success(f"Chào bác **{st.session_state['user_name']}**! Đang vào ứng dụng...")
                     time.sleep(0.4)
                     st.rerun()
                 else:
@@ -311,11 +383,13 @@ if st.session_state["step"] == 1:
 # ============================================================
 # HEADER CHUNG CHO CỬA SỔ 2 & 3
 # ============================================================
+header_driver_name = safe_html(st.session_state.get("user_name", "Tài xế"))
+header_driver_phone = safe_html(st.session_state.get("user_phone", ""))
 st.markdown(
     f"""
     <div class="driver-header">
-        <div class="driver-name">👨‍✈️ Tài xế: {st.session_state['user_name']}</div>
-        <div class="driver-phone">📞 SĐT: {st.session_state['user_phone']}</div>
+        <div class="driver-name">👨‍✈️ Tài xế: {header_driver_name}</div>
+        <div class="driver-phone">📞 SĐT: {header_driver_phone}</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -339,30 +413,42 @@ if st.session_state["step"] == 2:
         
         st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
         if st.button("🟢 BẮT ĐẦU HÀNH TRÌNH", use_container_width=True):
+            started_at = time.time()
             st.session_state["trip_active_state"] = True
-            st.session_state["trip_started_at"] = time.time()
+            st.session_state["trip_started_at"] = started_at
             st.session_state["cust_name"] = cust_name_in.strip() if cust_name_in.strip() else "Khách vãng lai"
             st.session_state["cust_phone"] = cust_phone_in.strip()
-            st.session_state["trip_id"] = f"C4567_{int(st.session_state['trip_started_at'])}"
-            
-            update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
-            
-            start_time_str = get_vn_time(st.session_state["trip_started_at"])
+            st.session_state["trip_id"] = f"C4567_{int(started_at)}"
+            st.session_state["saved_to_sheet"] = False
+
+            start_time_str = get_vn_time(started_at)
             stt_cache = get_next_stt("CACHE_4567")
             cache_row = [
                 stt_cache, st.session_state["trip_id"], start_time_str, "---", "---",
                 st.session_state["cust_name"], st.session_state["cust_phone"], 0,
-                st.session_state['user_name'], "---", 0, 0, "BẮT ĐẦU CUỐC"
+                st.session_state["user_name"], "---", 0, 0, "BẮT ĐẦU CUỐC"
             ]
-            append_row_to_sheet("CACHE_4567", cache_row)
-            st.rerun()
-    
+            cache_ok = append_row_to_sheet("CACHE_4567", cache_row)
+            if not cache_ok:
+                st.session_state["trip_active_state"] = False
+                st.error("❌ Không thể ghi CACHE_4567. Vui lòng kiểm tra kết nối Google Sheets rồi thử lại.")
+            else:
+                update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
+                st.rerun()
+
     else:
+        current_start_ts = st.session_state.get('trip_started_at', time.time())
+        cname_val = st.session_state.get('cust_name', 'Khách vãng lai')
+        cphone_val = st.session_state.get('cust_phone', '')
+        cname_html = safe_html(cname_val)
+        cphone_html = safe_html(cphone_val)
+        tiers_json = json.dumps(get_pricing_tiers(), ensure_ascii=False)
+
         st.markdown(
             f"""
             <div class="pro-card" style="border-left: 5px solid #059669; background: #f8fafc;">
                 <div style="color: #059669; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">🟢 ĐANG ĐO HÀNH TRÌNH GPS</div>
-                <div style="font-size: 14px; color: #1e293b; margin-top: 4px; font-weight: 700;">Khách: {st.session_state.get('cust_name', 'Khách vãng lai')} &bull; SĐT: {st.session_state.get('cust_phone', '---')}</div>
+                <div style="font-size: 14px; color: #1e293b; margin-top: 4px; font-weight: 700;">Khách: {cname_html} &bull; SĐT: {cphone_html}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -371,7 +457,9 @@ if st.session_state["step"] == 2:
         current_start_ts = st.session_state.get('trip_started_at', time.time())
         cname_val = st.session_state.get('cust_name', 'Khách vãng lai')
         cphone_val = st.session_state.get('cust_phone', '')
-        tiers_json = json.dumps(get_pricing_tiers())
+        cname_html = safe_html(cname_val)
+        cphone_html = safe_html(cphone_val)
+        tiers_json = json.dumps(get_pricing_tiers(), ensure_ascii=False)
         
         html_live_tracker = f"""
         <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
@@ -421,11 +509,14 @@ if st.session_state["step"] == 2:
 
         <script>
         let isPaused = false;
-        let secondsElapsed = parseInt(localStorage.getItem("xeom_v4_seconds") || "0");
-        let totalMeters = parseFloat(localStorage.getItem("xeom_v4_meters") || "0.0");
+        const tripStorageKey = "xeom_v5_" + {json.dumps(st.session_state['trip_id'], ensure_ascii=False)};
+        let secondsElapsed = parseInt(localStorage.getItem(tripStorageKey + "_seconds") || "0", 10);
+        let totalMeters = parseFloat(localStorage.getItem(tripStorageKey + "_meters") || "0.0");
+        if (!Number.isFinite(secondsElapsed) || secondsElapsed < 0) secondsElapsed = 0;
+        if (!Number.isFinite(totalMeters) || totalMeters < 0) totalMeters = 0;
         let startTimestamp = {current_start_ts};
-        let customerName = "{cname_val}";
-        let customerPhone = "{cphone_val}";
+        let customerName = {json.dumps(cname_val, ensure_ascii=False)};
+        let customerPhone = {json.dumps(cphone_val, ensure_ascii=False)};
         let pricingTiers = {tiers_json};
 
         function vibrate(duration = 50) {{
@@ -485,12 +576,11 @@ if st.session_state["step"] == 2:
 
         updateUI();
 
+        // TẠM DỪNG chỉ dừng cộng GPS; đồng hồ vẫn chạy để khớp thời gian hóa đơn.
         setInterval(function() {{
-            if (!isPaused) {{
-                secondsElapsed++;
-                localStorage.setItem("xeom_v4_seconds", secondsElapsed);
-                updateUI();
-            }}
+            secondsElapsed++;
+            localStorage.setItem(tripStorageKey + "_seconds", secondsElapsed);
+            updateUI();
         }}, 1000);
 
         function togglePause() {{
@@ -538,7 +628,7 @@ if st.session_state["step"] == 2:
                         let d = calcCrow(lastLat, lastLon, lat, lon);
                         if (d >= {MIN_MOVE_M} && d < 120) {{
                             totalMeters += d;
-                            localStorage.setItem("xeom_v4_meters", totalMeters);
+                            localStorage.setItem(tripStorageKey + "_meters", totalMeters);
                             updateUI();
                         }}
                     }}
@@ -551,9 +641,6 @@ if st.session_state["step"] == 2:
 
         function handlePayment(e) {{
             vibrate(90);
-            localStorage.removeItem("xeom_v4_meters");
-            localStorage.removeItem("xeom_v4_seconds");
-
             let baseUrl = window.location.href.split('?')[0];
             try {{
                 if (window.parent && window.parent.location) {{
@@ -597,17 +684,24 @@ elif st.session_state["step"] == 3:
     driver_name_val = st.session_state.get('user_name', 'Tài xế')
     unit_desc = get_current_unit_price_desc(km_val)
     
-    # Lưu vào Google Sheets chỉ 1 lần duy nhất
+    # Lưu vào Google Sheets an toàn: kiểm tra mã cuốc trước khi ghi để tránh trùng.
     if not st.session_state["saved_to_sheet"]:
-        stt = get_next_stt("DATA_4567")
-        row_data = [
-            stt, trip_id, start_time_str, end_time_str, total_time_str,
-            cname, cphone, fare_val, driver_name_val,
-            unit_desc, km_val, fare_val, "ĐÃ THANH TOÁN"
-        ]
-        append_row_to_sheet("DATA_4567", row_data)
-        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-        st.session_state["saved_to_sheet"] = True
+        if trip_exists_in_sheet("DATA_4567", trip_id):
+            save_ok = True
+        else:
+            stt = get_next_stt("DATA_4567")
+            row_data = [
+                stt, trip_id, start_time_str, end_time_str, total_time_str,
+                cname, cphone, fare_val, driver_name_val,
+                unit_desc, km_val, fare_val, "ĐÃ THANH TOÁN"
+            ]
+            save_ok = append_row_to_sheet("DATA_4567", row_data)
+
+        if save_ok:
+            delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
+            st.session_state["saved_to_sheet"] = True
+        else:
+            st.error("❌ Chưa thể đồng bộ hóa đơn lên DATA_4567. Vui lòng giữ nguyên màn hình này và thử lại.")
 
     # Nút bấm quay về màn hình nhận khách
     if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
@@ -617,6 +711,16 @@ elif st.session_state["step"] == 3:
         st.session_state["step"] = 2
         st.rerun()
 
+    # Escape dữ liệu người dùng trước khi đưa vào HTML.
+    cname_html_invoice = safe_html(cname)
+    cphone_html_invoice = safe_html(cphone) if cphone else "Không có SĐT"
+    trip_id_html = safe_html(trip_id)
+    start_time_html = safe_html(start_time_str)
+    end_time_html = safe_html(end_time_str)
+    total_time_html = safe_html(total_time_str)
+    unit_desc_html = safe_html(unit_desc)
+    driver_name_html = safe_html(driver_name_val)
+
     # Khung hóa đơn chi tiết
     invoice_html = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
@@ -624,29 +728,29 @@ elif st.session_state["step"] == 3:
             <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 12px; margin-bottom: 12px;">
                 <div style="font-size: 32px;">🧾</div>
                 <div style="font-size: 19px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
-                <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 2px;">Mã cuốc: {trip_id}</div>
+                <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 2px;">Mã cuốc: {trip_id_html}</div>
             </div>
             
             <div style="font-size: 14px; color: #334155; line-height: 1.7;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Khách hàng:</span>
-                    <span style="font-weight: 800; color: #0f172a; text-align: right;">{cname} ({cphone if cphone else 'Không có SĐT'})</span>
+                    <span style="font-weight: 800; color: #0f172a; text-align: right;">{cname_html_invoice} ({cphone_html_invoice})</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Tài xế:</span>
-                    <span style="font-weight: 800; color: #0f172a;">{driver_name_val}</span>
+                    <span style="font-weight: 800; color: #0f172a;">{driver_name_html}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span>
-                    <span style="font-weight: 700; color: #0f172a;">{start_time_str}</span>
+                    <span style="font-weight: 700; color: #0f172a;">{start_time_html}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span>
-                    <span style="font-weight: 700; color: #0f172a;">{end_time_str}</span>
+                    <span style="font-weight: 700; color: #0f172a;">{end_time_html}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Thời gian đi:</span>
-                    <span style="font-weight: 700; color: #0f172a;">{total_time_str}</span>
+                    <span style="font-weight: 700; color: #0f172a;">{total_time_html}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <span style="color: #64748b; font-weight: 600;">Quãng đường:</span>
@@ -654,7 +758,7 @@ elif st.session_state["step"] == 3:
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span style="color: #64748b; font-weight: 600;">Mức giá:</span>
-                    <span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc}</span>
+                    <span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc_html}</span>
                 </div>
             </div>
             
