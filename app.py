@@ -41,31 +41,6 @@ def safe_html(value):
     return html.escape(str(value or ""), quote=True)
 
 
-def get_app_url():
-    """Lấy URL thật của trang Streamlit hiện tại từ backend, không phụ thuộc iframe."""
-    try:
-        url = str(getattr(st.context, "url", "") or "").strip()
-        if url:
-            return url.split("?", 1)[0].split("#", 1)[0]
-    except Exception:
-        pass
-
-    # Fallback cho môi trường Streamlit cũ hơn.
-    try:
-        headers = st.context.headers
-        host = str(headers.get("Host", "") or "").strip()
-        proto = str(headers.get("X-Forwarded-Proto", "https") or "https").split(",", 1)[0].strip()
-        if host:
-            return f"{proto}://{host}"
-    except Exception:
-        pass
-    return ""
-
-
-# URL này được lấy ở Python backend; JavaScript tuyệt đối không tự suy đoán URL từ iframe.
-APP_URL = get_app_url()
-
-
 # ============================================================
 # GOOGLE SHEETS
 # ============================================================
@@ -106,28 +81,40 @@ def append_row_to_sheet(tab_name, row_values):
         return False
 
 
-def delete_row_from_sheet(tab_name, col_name, target_val):
+def delete_row_status(tab_name, col_name, target_val):
+    """Return 'deleted', 'not_found', or 'error'."""
     try:
         ws, records = get_worksheet_data(tab_name)
-        if ws is None or not records:
-            return False
+        if ws is None:
+            return "error"
         target = str(target_val).strip()
         for row_index, row in enumerate(records, start=2):
             if str(row.get(col_name, "")).strip() == target:
                 ws.delete_rows(row_index)
-                return True
-        return False
+                return "deleted"
+        return "not_found"
     except Exception:
-        return False
+        return "error"
+
+
+def delete_row_from_sheet(tab_name, col_name, target_val):
+    # Compatibility helper for any existing call sites.
+    return delete_row_status(tab_name, col_name, target_val) == "deleted"
 
 
 def trip_exists_in_sheet(tab_name, trip_id):
+    """
+    Trả về True/False nếu đọc Sheet thành công; None nếu không thể đọc.
+    Điều này ngăn app ghi trùng DATA khi Google Sheets đang lỗi hoặc timeout.
+    """
     try:
-        _, records = get_worksheet_data(tab_name)
+        ws, records = get_worksheet_data(tab_name)
+        if ws is None:
+            return None
         target = str(trip_id).strip()
         return any(str(row.get("MÃ CUỐC XE", "")).strip() == target for row in records)
     except Exception:
-        return False
+        return None
 
 
 def get_next_stt(tab_name):
@@ -390,7 +377,11 @@ if st.query_params.get("action") == "checkout":
 
     st.session_state["final_dist"] = final_dist
     st.session_state["trip_started_at"] = start_ts
-    st.session_state["final_end_ts"] = time.time()
+    try:
+        end_ts = float(st.query_params.get("ended", time.time()))
+    except (TypeError, ValueError):
+        end_ts = time.time()
+    st.session_state["final_end_ts"] = end_ts
     st.session_state["final_elapsed_seconds"] = elapsed_seconds
     st.session_state["gps_valid_points"] = gps_points
     st.session_state["cust_name"] = st.query_params.get("cname", "Khách vãng lai") or "Khách vãng lai"
@@ -570,8 +561,18 @@ if st.session_state["step"] == 2:
             </div>
 
             <div style="display:flex;gap:10px;margin-top:10px;">
-                <button id="pauseBtn" class="action-btn" onclick="togglePause()" style="flex:1;background:#d97706;color:#fff;">⏸ TẠM DỪNG</button>
-                <a id="payBtn" class="action-btn" href="#" target="_top" rel="noopener" onclick="handlePayment(event)" style="flex:1.2;background:#059669;color:#fff;text-decoration:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">💵 THANH TOÁN</a>
+                <button id="pauseBtn" class="action-btn" type="button" onclick="togglePause()" style="flex:1;background:#d97706;color:#fff;">⏸ TẠM DỪNG</button>
+                <form id="checkoutForm" method="get" action="/" target="_top" onsubmit="return prepareCheckout(event)" style="flex:1.2;margin:0;">
+                    <input type="hidden" name="action" value="checkout">
+                    <input type="hidden" name="dist" id="checkoutDist">
+                    <input type="hidden" name="start" id="checkoutStart">
+                    <input type="hidden" name="elapsed" id="checkoutElapsed">
+                    <input type="hidden" name="gps" id="checkoutGps">
+                    <input type="hidden" name="ended" id="checkoutEnded">
+                    <input type="hidden" name="cname" id="checkoutCname">
+                    <input type="hidden" name="cphone" id="checkoutCphone">
+                    <button id="payBtn" class="action-btn" type="submit" style="width:100%;background:#059669;color:#fff;">💵 THANH TOÁN</button>
+                </form>
             </div>
 
             <div id="gps" style="text-align:center;font-size:12px;color:#64748b;font-weight:700;margin-top:8px;">📡 GPS: Đang bắt tín hiệu...</div>
@@ -583,7 +584,6 @@ if st.session_state["step"] == 2:
         const customerName = {customer_name_js};
         const customerPhone = {customer_phone_js};
         const pricingTiers = {tiers_json};
-        const appUrl = {json.dumps(APP_URL, ensure_ascii=False)};
 
         let isPaused = localStorage.getItem(tripStorageKey + ":paused") === "1";
         let totalMeters = parseFloat(localStorage.getItem(tripStorageKey + ":meters") || "0");
@@ -739,43 +739,37 @@ if st.session_state["step"] == 2:
 
         let paymentNavigating = false;
 
-        function handlePayment(event) {{
-            if (paymentNavigating) return false;
+        function prepareCheckout(event) {{
+            if (paymentNavigating) {{
+                event.preventDefault();
+                return false;
+            }}
 
             vibrate(90);
             syncClock();
             persist();
-
-            // Tạo URL từ backend-provided appUrl. Không đọc window.top/location của iframe.
-            if (!appUrl) {{
-                toast("⚠️ Không xác định được địa chỉ ứng dụng. Cuốc xe vẫn được giữ nguyên.", "#b91c1c");
-                return false;
-            }}
-
-            const params = new URLSearchParams({{
-                action: "checkout",
-                dist: String(totalMeters),
-                start: String(startTimestamp),
-                elapsed: String(elapsedSeconds),
-                gps: String(validGpsPoints),
-                cname: customerName,
-                cphone: customerPhone
-            }});
-
-            const target = appUrl + "?" + params.toString();
-            const payBtn = document.getElementById("payBtn");
-
-            // Không xóa localStorage tại đây. Chỉ chuyển trang sau khi đã lấy đủ dữ liệu.
             paymentNavigating = true;
+
+            // Dùng form HTML native + target="_top".
+            // Không dùng window.parent/window.top.location/document.referrer.
+            // Vì đây là điều hướng do chính thao tác bấm nút của người dùng,
+            // trình duyệt sẽ đưa trang checkout lên đúng tab hiện tại, không lồng App.
+            document.getElementById("checkoutDist").value = String(totalMeters);
+            document.getElementById("checkoutStart").value = String(startTimestamp);
+            document.getElementById("checkoutElapsed").value = String(elapsedSeconds);
+            document.getElementById("checkoutGps").value = String(validGpsPoints);
+            document.getElementById("checkoutEnded").value = String(Date.now() / 1000);
+            document.getElementById("checkoutCname").value = customerName;
+            document.getElementById("checkoutCphone").value = customerPhone;
+
+            const payBtn = document.getElementById("payBtn");
             if (payBtn) {{
-                payBtn.setAttribute("href", target);
-                payBtn.style.pointerEvents = "none";
+                payBtn.disabled = true;
                 payBtn.style.opacity = "0.7";
                 payBtn.innerText = "⏳ ĐANG MỞ THANH TOÁN...";
             }}
-            toast("Đang mở xác nhận thanh toán...", "#059669");
 
-            // Trình duyệt sẽ tiếp tục click <a target="_top"> tới href vừa được gán.
+            toast("Đang mở xác nhận thanh toán...", "#059669");
             return true;
         }}
         </script>
@@ -862,7 +856,12 @@ elif st.session_state["step"] == 3:
     # --------------------------------------------------------
     payment_method = st.session_state.get("payment_method") or "Tiền mặt"
     if st.session_state.get("payment_confirmed", False) and not st.session_state["saved_to_sheet"]:
-        if trip_exists_in_sheet("DATA_4567", trip_id):
+        data_exists = trip_exists_in_sheet("DATA_4567", trip_id)
+        data_saved = False
+
+        if data_exists is None:
+            st.error("❌ Không đọc được DATA_4567. Chưa chốt giao dịch để tránh ghi trùng.")
+        elif data_exists:
             data_saved = True
         else:
             row_data = [
@@ -885,12 +884,16 @@ elif st.session_state["step"] == 3:
         if data_saved:
             method_saved = set_payment_method_in_sheet("DATA_4567", trip_id, payment_method)
             if method_saved:
-                # Chỉ xóa CACHE sau khi DATA + phương thức thanh toán đã ổn.
-                delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-                st.session_state["saved_to_sheet"] = True
+                # DATA + phương thức đã ổn; chỉ khi CACHE được xóa (hoặc đã không còn)
+                # mới coi giao dịch là hoàn tất.
+                cache_status = delete_row_status("CACHE_4567", "MÃ CUỐC XE", trip_id)
+                if cache_status in {"deleted", "not_found"}:
+                    st.session_state["saved_to_sheet"] = True
+                else:
+                    st.error("⚠️ DATA_4567 đã lưu an toàn nhưng CACHE_4567 chưa xóa được. Giữ nguyên màn hình để thử lại.")
             else:
-                st.error("❌ Đã ghi giao dịch nhưng chưa ghi được phương thức thanh toán. Vui lòng giữ màn hình này.")
-        else:
+                st.error("❌ DATA_4567 đã có nhưng chưa ghi được phương thức thanh toán. Giữ nguyên màn hình để thử lại.")
+        elif data_exists is not None:
             st.error("❌ Chưa thể lưu hóa đơn vào DATA_4567. Vui lòng giữ nguyên màn hình và thử lại.")
 
     if st.session_state["saved_to_sheet"]:
@@ -937,5 +940,6 @@ elif st.session_state["step"] == 3:
         st.session_state["final_dist"] = 0.0
         st.session_state["final_elapsed_seconds"] = 0
         st.session_state["gps_valid_points"] = 0
+        st.session_state["trip_id"] = ""
         st.session_state["step"] = 2
         st.rerun()
