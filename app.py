@@ -11,7 +11,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.4 Pro)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v5.1 Chính Xác)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -320,7 +320,8 @@ defaults = {
     "saved_to_sheet": False,
     "payment_pending": False,
     "payment_method": "",
-    "payment_confirmed": False
+    "payment_confirmed": False,
+    "gps_valid_points": 0
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -328,6 +329,13 @@ for key, value in defaults.items():
 
 GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
+
+# URL gốc của chính ứng dụng Streamlit. Chúng ta lấy từ server để iframe GPS
+# không bao giờ tự suy đoán URL cha và vô tình nhúng một bản Streamlit khác.
+try:
+    APP_BASE_URL = str(getattr(st.context, "url", "") or "").split("?", 1)[0]
+except Exception:
+    APP_BASE_URL = ""
 
 # Bắt tín hiệu kết thúc chuyến từ JS đẩy qua query params
 if "action" in st.query_params and st.query_params["action"] in {"stop", "checkout"}:
@@ -346,6 +354,12 @@ if "action" in st.query_params and st.query_params["action"] in {"stop", "checko
     except (TypeError, ValueError):
         elapsed_seconds = 0
 
+    try:
+        gps_points = max(0, int(float(st.query_params.get("gps", 0))))
+    except (TypeError, ValueError):
+        gps_points = 0
+
+    st.session_state["gps_valid_points"] = gps_points
     st.session_state["trip_started_at"] = start_ts
     st.session_state["final_end_ts"] = time.time()
     st.session_state["final_elapsed"] = elapsed_seconds
@@ -462,6 +476,7 @@ if st.session_state["step"] == 2:
             st.session_state["payment_pending"] = False
             st.session_state["payment_method"] = ""
             st.session_state["payment_confirmed"] = False
+            st.session_state["gps_valid_points"] = 0
 
             start_time_str = get_vn_time(started_at)
             stt_cache = get_next_stt("CACHE_4567")
@@ -542,21 +557,26 @@ if st.session_state["step"] == 2:
                 <button id="btnPause" class="action-btn" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
                     ⏸ TẠM DỪNG
                 </button>
-                <a id="btnPay" class="action-btn" href="#" target="_top" style="flex: 1.2; background: #059669; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3); text-decoration: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
+                <button id="btnPay" class="action-btn" onclick="handlePayment(event)" style="flex: 1.2; background: #059669; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);">
                     💵 THANH TOÁN
-                </a>
+                </button>
             </div>
             <div id="debug_acc" style="text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
         </div>
 
         <script>
-        let isPaused = false;
         const tripStorageKey = "xeom_v5_" + {json.dumps(st.session_state['trip_id'], ensure_ascii=False)};
+        let isPaused = localStorage.getItem(tripStorageKey + "_paused") === "1";
         let secondsElapsed = parseInt(localStorage.getItem(tripStorageKey + "_seconds") || "0", 10);
         let totalMeters = parseFloat(localStorage.getItem(tripStorageKey + "_meters") || "0.0");
+        let validGpsPoints = parseInt(localStorage.getItem(tripStorageKey + "_gps_points") || "0", 10);
+        let lastClockMs = parseInt(localStorage.getItem(tripStorageKey + "_last_clock_ms") || "0", 10);
         if (!Number.isFinite(secondsElapsed) || secondsElapsed < 0) secondsElapsed = 0;
         if (!Number.isFinite(totalMeters) || totalMeters < 0) totalMeters = 0;
+        if (!Number.isFinite(validGpsPoints) || validGpsPoints < 0) validGpsPoints = 0;
+        if (!Number.isFinite(lastClockMs) || lastClockMs <= 0) lastClockMs = Date.now();
         let startTimestamp = {current_start_ts};
+        let appBaseUrl = {json.dumps(APP_BASE_URL, ensure_ascii=False)};
         let customerName = {json.dumps(cname_val, ensure_ascii=False)};
         let customerPhone = {json.dumps(cphone_val, ensure_ascii=False)};
         let pricingTiers = {tiers_json};
@@ -616,60 +636,56 @@ if st.session_state["step"] == 2:
             document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
         }}
 
-        function getBaseUrl() {{
-            let baseUrl = window.location.href.split('?')[0];
-            try {{
-                if (window.top && window.top.location) {{
-                    baseUrl = window.top.location.href.split('?')[0];
-                }}
-            }} catch (err) {{}}
-            return baseUrl;
-        }}
-
-        function updatePaymentLink() {{
-            const link = document.getElementById("btnPay");
-            if (!link) return;
-            const targetUrl = getBaseUrl()
-                + "?action=checkout&dist=" + encodeURIComponent(totalMeters)
-                + "&elapsed=" + encodeURIComponent(secondsElapsed)
-                + "&start=" + encodeURIComponent(startTimestamp)
-                + "&cname=" + encodeURIComponent(customerName)
-                + "&cphone=" + encodeURIComponent(customerPhone);
-            link.href = targetUrl;
-        }}
-
-        updateUI();
-        updatePaymentLink();
-
-        // TẠM DỪNG dừng cả đồng hồ và GPS; TIẾP TỤC mới chạy lại.
-        setInterval(function() {{
+        function syncClock() {{
+            const nowMs = Date.now();
             if (!isPaused) {{
-                secondsElapsed++;
-                localStorage.setItem(tripStorageKey + "_seconds", secondsElapsed);
-                updateUI();
-                updatePaymentLink();
+                const deltaMs = Math.max(0, nowMs - lastClockMs);
+                if (deltaMs >= 1000) {{
+                    const wholeSeconds = Math.floor(deltaMs / 1000);
+                    secondsElapsed += wholeSeconds;
+                    lastClockMs += wholeSeconds * 1000;
+                }}
+            }} else {{
+                lastClockMs = nowMs;
             }}
-        }}, 1000);
+            localStorage.setItem(tripStorageKey + "_seconds", String(secondsElapsed));
+            localStorage.setItem(tripStorageKey + "_last_clock_ms", String(lastClockMs));
+            updateUI();
+        }}
 
-        function togglePause() {{
-            vibrate(60);
-            isPaused = !isPaused;
+        function renderPauseState() {{
             let btn = document.getElementById("btnPause");
             let label = document.getElementById("status_label");
             if (isPaused) {{
                 btn.innerText = "▶️ TIẾP TỤC";
                 btn.style.background = "#2563eb";
-                label.innerText = "⏸ ĐANG TẠM DỪNG GPS";
+                label.innerText = "⏸ ĐANG TẠM DỪNG GPS + ĐỒNG HỒ";
                 label.style.color = "#fbbf24";
-                updatePaymentLink();
-                showToast("⏸ Đã tạm dừng: dừng cả đồng hồ và GPS.", "#d97706");
             }} else {{
                 btn.innerText = "⏸ TẠM DỪNG";
                 btn.style.background = "#d97706";
-                label.innerText = "🟢 ĐỒNG HỒ TÍNH CƯỚC THỜI GIAN THỰC";
+                label.innerText = "🟢 ĐANG ĐO HÀNH TRÌNH THỜI GIAN THỰC";
                 label.style.color = "#34d399";
-                updatePaymentLink();
-                showToast("▶️ Tiếp tục đồng hồ và GPS.", "#059669");
+            }}
+        }}
+
+        // Bù thời gian khi trình duyệt chạy nền/throttle JavaScript.
+        syncClock();
+        renderPauseState();
+        setInterval(syncClock, 500);
+
+        function togglePause() {{
+            vibrate(60);
+            syncClock();
+            isPaused = !isPaused;
+            lastClockMs = Date.now();
+            localStorage.setItem(tripStorageKey + "_paused", isPaused ? "1" : "0");
+            localStorage.setItem(tripStorageKey + "_last_clock_ms", String(lastClockMs));
+            renderPauseState();
+            if (isPaused) {{
+                showToast("⏸ Đã tạm dừng GPS và đồng hồ.", "#d97706");
+            }} else {{
+                showToast("▶️ Đã tiếp tục GPS và đồng hồ.", "#059669");
             }}
         }}
 
@@ -689,12 +705,13 @@ if st.session_state["step"] == 2:
             navigator.geolocation.watchPosition(
                 function(pos) {{
                     let lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy;
-                    document.getElementById("debug_acc").innerText = "Độ chính xác GPS: ±" + acc.toFixed(1) + "m";
-                    
                     if (acc > {GPS_ACCURACY_MAX_M}) {{
-                        document.getElementById("debug_acc").innerText = "GPS: tín hiệu yếu (±" + acc.toFixed(1) + "m), chưa cộng quãng đường";
+                        document.getElementById("debug_acc").innerText = "⚠️ GPS yếu: ±" + acc.toFixed(1) + "m (chưa cộng KM)";
                         return;
                     }}
+                    document.getElementById("debug_acc").innerText = "✅ GPS chính xác: ±" + acc.toFixed(1) + "m";
+                    validGpsPoints++;
+                    localStorage.setItem(tripStorageKey + "_gps_points", String(validGpsPoints));
                     if (lastLat === null) {{ lastLat = lat; lastLon = lon; return; }}
                     
                     if (!isPaused) {{
@@ -712,21 +729,20 @@ if st.session_state["step"] == 2:
             );
         }}
 
-        // Fallback cho một số trình duyệt chặn target="_top" trong iframe.
-        const paymentLink = document.getElementById("btnPay");
-        if (paymentLink) {{
-            paymentLink.addEventListener("click", function(e) {{
-                vibrate(90);
-                const targetUrl = paymentLink.href;
-                showToast("Đang chuyển sang xác nhận thanh toán...", "#059669");
-                setTimeout(function() {{
-                    try {{
-                        window.top.location.href = targetUrl;
-                    }} catch (err) {{
-                        window.location.href = targetUrl;
-                    }}
-                }}, 80);
-            }});
+        function handlePayment(e) {{
+            vibrate(90);
+            syncClock();
+            const baseUrl = appBaseUrl || (window.top.location.origin + window.top.location.pathname);
+            const targetUrl = baseUrl
+                + "?action=checkout&dist=" + encodeURIComponent(totalMeters)
+                + "&elapsed=" + encodeURIComponent(secondsElapsed)
+                + "&start=" + encodeURIComponent(startTimestamp)
+                + "&gps=" + encodeURIComponent(validGpsPoints)
+                + "&cname=" + encodeURIComponent(customerName)
+                + "&cphone=" + encodeURIComponent(customerPhone);
+
+            // Điều hướng toàn bộ TAB hiện tại, không điều hướng iframe cha.
+            window.top.location.assign(targetUrl);
         }}
         </script>
         """
@@ -745,17 +761,17 @@ elif st.session_state["step"] == 3:
 
     start_time_str = get_vn_time(start_ts)
     end_time_str = get_vn_time(end_ts)
+    # Thời gian tính tiền lấy từ đồng hồ hành trình; TẠM DỪNG không được tính.
     time_diff = max(0, int(st.session_state.get("final_elapsed", 0)))
-    if time_diff == 0 and end_ts and start_ts:
-        # Tương thích với các cuốc cũ nếu chưa truyền elapsed.
-        time_diff = max(0, int(end_ts - start_ts))
     hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
-    km_val = round(dist_val / 1000.0, 2)
-    fare_val = calculate_fare(km_val)
+    km_exact = dist_val / 1000.0
+    km_val = round(km_exact, 2)
+    # Thành tiền tính trên toàn bộ quãng đường GPS, không tính trên giá trị đã làm tròn hiển thị.
+    fare_val = calculate_fare(km_exact)
     driver_name_val = st.session_state.get('user_name', 'Tài xế')
-    unit_desc = get_current_unit_price_desc(km_val)
+    unit_desc = get_current_unit_price_desc(km_exact)
 
     # ------------------------------------------------------------
     # BƯỚC 1: XÁC NHẬN THANH TOÁN
@@ -792,21 +808,25 @@ elif st.session_state["step"] == 3:
         selected_method = "Tiền mặt" if payment_method.startswith("💵") else "Chuyển khoản"
         st.session_state["payment_method"] = selected_method
 
-        st.markdown(
-            "<div style='font-size:13px; color:#475569; font-weight:700; margin:8px 2px 12px;'>"
-            "⚠️ Chỉ xác nhận sau khi bác đã thực nhận đủ tiền từ khách.</div>",
-            unsafe_allow_html=True,
-        )
+        gps_valid_points = int(st.session_state.get("gps_valid_points", 0))
+        if gps_valid_points <= 0:
+            st.error("❌ Chưa có điểm GPS hợp lệ. App chưa cho phép chốt thanh toán để tránh tính sai quãng đường.")
+        else:
+            st.markdown(
+                "<div style='font-size:13px; color:#475569; font-weight:700; margin:8px 2px 12px;'>"
+                "⚠️ Chỉ xác nhận sau khi bác đã thực nhận đủ tiền từ khách.</div>",
+                unsafe_allow_html=True,
+            )
 
         col1, col2 = st.columns(2)
         with col1:
             if st.button("↩️ QUAY LẠI", use_container_width=True):
-                # Giữ cuốc đang chạy để bác quay lại màn hình GPS nếu bấm nhầm.
+                # Giữ cuốc đang chạy để bác quay lại màn hình GPS nếu bấm nhầm hoặc GPS chưa hợp lệ.
                 st.session_state["payment_pending"] = False
                 st.session_state["step"] = 2
                 st.rerun()
         with col2:
-            if st.button("✅ XÁC NHẬN ĐÃ NHẬN TIỀN", use_container_width=True):
+            if st.button("✅ XÁC NHẬN ĐÃ NHẬN TIỀN", use_container_width=True, disabled=(gps_valid_points <= 0)):
                 st.session_state["payment_confirmed"] = True
                 st.session_state["payment_pending"] = False
                 st.rerun()
@@ -818,7 +838,7 @@ elif st.session_state["step"] == 3:
     # ------------------------------------------------------------
     payment_method = st.session_state.get("payment_method") or "Tiền mặt"
 
-    if not st.session_state["saved_to_sheet"]:
+    if st.session_state.get("payment_confirmed", False) and not st.session_state["saved_to_sheet"]:
         if trip_exists_in_sheet("DATA_4567", trip_id):
             save_ok = True
         else:
@@ -856,6 +876,7 @@ elif st.session_state["step"] == 3:
         st.session_state["payment_method"] = ""
         st.session_state["payment_confirmed"] = False
         st.session_state["final_elapsed"] = 0
+        st.session_state["gps_valid_points"] = 0
         st.session_state["step"] = 2
         st.rerun()
 
@@ -884,7 +905,7 @@ elif st.session_state["step"] == 3:
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span><span style="font-weight: 700; color: #0f172a;">{start_time_html}</span></div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span><span style="font-weight: 700; color: #0f172a;">{end_time_html}</span></div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Thời gian đi:</span><span style="font-weight: 700; color: #0f172a;">{total_time_html}</span></div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Quãng đường:</span><span style="font-weight: 800; color: #059669;">{km_val:.2f} km</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Quãng đường GPS:</span><span style="font-weight: 800; color: #059669;">{km_exact:.3f} km</span></div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Mức giá:</span><span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc_html}</span></div>
                 <div style="display: flex; justify-content: space-between;"><span style="color: #64748b; font-weight: 600;">Thanh toán:</span><span style="font-weight: 800; color: #059669;">{payment_method_html}</span></div>
             </div>
@@ -897,3 +918,4 @@ elif st.session_state["step"] == 3:
     </div>
     """
     components.html(invoice_html, height=560)
+
