@@ -1,6 +1,7 @@
 import math
 import time
 import datetime
+import json
 import gspread
 import pandas as pd
 import pytz
@@ -79,27 +80,81 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
         return False
 
 # ============================================================
-# HÀM TÍNH CƯỚC BẬC THANG CHUẨN
+# CẬP NHẬT HIỆN TRẠNG TÀI XẾ TRÊN SHEET DANG_NHAP
 # ============================================================
-def calculate_fare(km):
-    if km < 3.0:
-        return 0
-    elif km < 11.0:
-        return round(km * 4500)
-    elif km < 40.0:
-        return round(km * 4000)
-    else:
-        return round(km * 5500)
+def update_driver_status(phone, status_text):
+    try:
+        ws, records = get_worksheet_data("DANG_NHAP")
+        if ws is None:
+            return False
+        headers = ws.row_values(1)
+        col_idx = None
+        for idx, h in enumerate(headers, start=1):
+            if str(h).strip().upper() == "HIỆN TRẠNG TÀI XẾ":
+                col_idx = idx
+                break
+        if col_idx is None:
+            col_idx = len(headers) + 1 if headers else 1
+            ws.update_cell(1, col_idx, "HIỆN TRẠNG TÀI XẾ")
+        
+        for i, row in enumerate(records, start=2):
+            if str(row.get("SĐT", "")).strip() == str(phone).strip():
+                ws.update_cell(i, col_idx, status_text)
+                return True
+        return False
+    except Exception as e:
+        return False
 
-def get_current_unit_price_desc(km):
-    if km < 3.0:
-        return "0 đ/km (Miễn phí < 3km)"
-    elif km < 11.0:
-        return "4,500 đ/km (3km - dưới 11km)"
-    elif km < 40.0:
-        return "4,000 đ/km (11km - dưới 40km)"
-    else:
-        return "5,500 đ/km (Từ 40km trở lên)"
+# ============================================================
+# ĐỌC BẢNG GIÁ ĐỘNG TỪ SHEET BANG_GIA
+# ============================================================
+@st.cache_data(ttl=60)
+def get_pricing_rules():
+    default_rules = [
+        {"from": 0.0, "to": 3.0, "price": 0, "desc": "0 đ/km (Miễn phí < 3km)"},
+        {"from": 3.0, "to": 11.0, "price": 4500, "desc": "4,500 đ/km (3km - dưới 11km)"},
+        {"from": 11.0, "to": 40.0, "price": 4000, "desc": "4,000 đ/km (11km - dưới 40km)"},
+        {"from": 40.0, "to": 9999.0, "price": 5500, "desc": "5,500 đ/km (Từ 40km trở lên)"}
+    ]
+    try:
+        _, records = get_worksheet_data("BANG_GIA")
+        if not records:
+            return default_rules
+        rules = []
+        for r in records:
+            from_km = float(r.get("TỪ KM", r.get("Từ KM", r.get("TU_KM", 0))))
+            to_km = float(r.get("ĐẾN KM", r.get("Đến KM", r.get("DEN_KM", 9999))))
+            price = float(r.get("GIÁ/KM", r.get("Giá/KM", r.get("GIA_KM", r.get("ĐƠN GIÁ", 0)))))
+            desc = str(r.get("MÔ TẢ", r.get("Mô tả", ""))).strip()
+            if not desc:
+                if price == 0:
+                    desc = f"0 đ/km (Miễn phí < {to_km}km)"
+                else:
+                    desc = f"{price:,.0f} đ/km ({from_km}km - dưới {to_km}km)"
+            rules.append({"from": from_km, "to": to_km, "price": price, "desc": desc})
+        return rules if rules else default_rules
+    except Exception:
+        return default_rules
+
+def calculate_fare(km, rules=None):
+    if rules is None:
+        rules = get_pricing_rules()
+    for r in rules:
+        if r["from"] <= km < r["to"]:
+            return round(km * r["price"])
+    if rules:
+        return round(km * rules[-1]["price"])
+    return 0
+
+def get_current_unit_price_desc(km, rules=None):
+    if rules is None:
+        rules = get_pricing_rules()
+    for r in rules:
+        if r["from"] <= km < r["to"]:
+            return r["desc"]
+    if rules:
+        return rules[-1]["desc"]
+    return "0 đ/km"
 
 # ============================================================
 # CSS GIAO DIỆN CHUYÊN NGHIỆP
@@ -243,6 +298,7 @@ if st.session_state["step"] == 1:
                     st.session_state["user_phone"] = str(matched_user.get("SĐT", ""))
                     st.session_state["user_name"] = str(matched_user.get("TÊN TÀI XẾ", "Tài xế"))
                     st.session_state["step"] = 2
+                    update_driver_status(st.session_state["user_phone"], "Trực tuyến")
                     st.success(f"Chào bác **{st.session_state['user_name']}**! Đang vào ứng dụng...")
                     time.sleep(0.4)
                     st.rerun()
@@ -295,6 +351,7 @@ if st.session_state["step"] == 2:
                 st.session_state['user_name'], "---", 0, 0, "BẮT ĐẦU CUỐC"
             ]
             append_row_to_sheet("CACHE_4567", cache_row)
+            update_driver_status(st.session_state["user_phone"], "Đang chạy xe")
             st.rerun()
     
     else:
@@ -311,6 +368,7 @@ if st.session_state["step"] == 2:
         current_start_ts = st.session_state.get('trip_started_at', time.time())
         cname_val = st.session_state.get('cust_name', 'Khách vãng lai')
         cphone_val = st.session_state.get('cust_phone', '')
+        pricing_rules_json = json.dumps(get_pricing_rules())
         
         html_live_tracker = f"""
         <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
@@ -344,7 +402,7 @@ if st.session_state["step"] == 2:
                     <div>⏱ <span id="timer">00:00:00</span></div>
                     <div>🛣 <span id="km">0.00</span> km</div>
                 </div>
-                <div id="rate_desc" style="color: #a7f3d0; font-size: 12px; margin-top: 8px; font-weight: 600;">Đơn giá: Miễn phí dưới 3km</div>
+                <div id="rate_desc" style="color: #a7f3d0; font-size: 12px; margin-top: 8px; font-weight: 600;">Đơn giá: Đang cập nhật...</div>
             </div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -365,6 +423,7 @@ if st.session_state["step"] == 2:
         let startTimestamp = {current_start_ts};
         let customerName = "{cname_val}";
         let customerPhone = "{cphone_val}";
+        let pricingRules = {pricing_rules_json};
 
         function vibrate(duration = 50) {{
             if (navigator.vibrate) {{ navigator.vibrate(duration); }}
@@ -383,17 +442,29 @@ if st.session_state["step"] == 2:
         }}
 
         function calculateFareJS(km) {{
-            if (km < 3.0) return 0;
-            if (km < 11.0) return Math.round(km * 4500);
-            if (km < 40.0) return Math.round(km * 4000);
-            return Math.round(km * 5500);
+            for (let i = 0; i < pricingRules.length; i++) {{
+                let r = pricingRules[i];
+                if (km >= r.from && km < r.to) {{
+                    return Math.round(km * r.price);
+                }}
+            }}
+            if (pricingRules.length > 0) {{
+                return Math.round(km * pricingRules[pricingRules.length - 1].price);
+            }}
+            return 0;
         }}
 
         function getRateDescJS(km) {{
-            if (km < 3.0) return "0 đ/km (Miễn phí < 3km)";
-            if (km < 11.0) return "4,500 đ/km (3km - dưới 11km)";
-            if (km < 40.0) return "4,000 đ/km (11km - dưới 40km)";
-            return "5,500 đ/km (Từ 40km trở lên)";
+            for (let i = 0; i < pricingRules.length; i++) {{
+                let r = pricingRules[i];
+                if (km >= r.from && km < r.to) {{
+                    return r.desc;
+                }}
+            }}
+            if (pricingRules.length > 0) {{
+                return pricingRules[pricingRules.length - 1].desc;
+            }}
+            return "0 đ/km";
         }}
 
         function updateUI() {{
@@ -490,7 +561,11 @@ if st.session_state["step"] == 2:
             let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
             
             showToast("Đang xử lý thanh toán...", "#059669");
-            window.open(targetUrl, '_self');
+            if (window.parent && window.parent.location) {{
+                window.parent.location.href = targetUrl;
+            }} else {{
+                window.location.href = targetUrl;
+            }}
         }}
         </script>
         """
@@ -515,9 +590,10 @@ elif st.session_state["step"] == 3:
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
     km_val = round(dist_val / 1000.0, 2)
-    fare_val = calculate_fare(km_val)
+    pricing_rules = get_pricing_rules()
+    fare_val = calculate_fare(km_val, pricing_rules)
     driver_name_val = st.session_state.get('user_name', 'Tài xế')
-    unit_desc = get_current_unit_price_desc(km_val)
+    unit_desc = get_current_unit_price_desc(km_val, pricing_rules)
     
     # Lưu vào Google Sheets chỉ 1 lần duy nhất
     if not st.session_state["saved_to_sheet"]:
@@ -533,8 +609,12 @@ elif st.session_state["step"] == 3:
 
     # Nút bấm quay về màn hình nhận khách
     if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
+        update_driver_status(st.session_state["user_phone"], "Trực tuyến")
         st.session_state["trip_active_state"] = False
         st.session_state["saved_to_sheet"] = False
+        st.session_state["cust_name"] = ""
+        st.session_state["cust_phone"] = ""
+        st.session_state["final_dist"] = 0.0
         st.session_state["step"] = 2
         st.rerun()
 
