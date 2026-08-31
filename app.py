@@ -133,6 +133,30 @@ def delete_row_from_sheet(tab_name, col_name, target_val):
     except Exception as e:
         return False
 
+
+def set_payment_method_in_sheet(tab_name, trip_id, payment_method):
+    """Ghi phương thức thanh toán vào cột PHƯƠNG THỨC THANH TOÁN; tự tạo cột nếu chưa có."""
+    try:
+        ws, records = get_worksheet_data(tab_name)
+        if ws is None:
+            return False
+        header = ws.row_values(1)
+        col_idx = None
+        for idx, h in enumerate(header, start=1):
+            if str(h).strip().upper() == "PHƯƠNG THỨC THANH TOÁN":
+                col_idx = idx
+                break
+        if col_idx is None:
+            col_idx = len(header) + 1
+            ws.update_cell(1, col_idx, "PHƯƠNG THỨC THANH TOÁN")
+        for i, row in enumerate(records, start=2):
+            if str(row.get("MÃ CUỐC XE", "")).strip() == str(trip_id).strip():
+                ws.update_cell(i, col_idx, payment_method)
+                return True
+        return False
+    except Exception:
+        return False
+
 # ============================================================
 # CẬP NHẬT HIỆN TRẠNG TÀI XẾ TRÊN SHEET DANG_NHAP
 # ============================================================
@@ -291,7 +315,10 @@ defaults = {
     "final_dist": 0.0,
     "final_end_ts": None,
     "trip_active_state": False,
-    "saved_to_sheet": False
+    "saved_to_sheet": False,
+    "payment_pending": False,
+    "payment_method": "",
+    "payment_confirmed": False
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -300,10 +327,10 @@ for key, value in defaults.items():
 GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
 
-# Bắt tín hiệu thanh toán từ JS đẩy qua query params
-if "action" in st.query_params and st.query_params["action"] == "stop":
+# Bắt tín hiệu kết thúc chuyến từ JS đẩy qua query params
+if "action" in st.query_params and st.query_params["action"] in {"stop", "checkout"}:
     try:
-        st.session_state["final_dist"] = float(st.query_params.get("dist", 0.0))
+        st.session_state["final_dist"] = max(0.0, float(st.query_params.get("dist", 0.0)))
     except (TypeError, ValueError):
         st.session_state["final_dist"] = 0.0
 
@@ -317,7 +344,10 @@ if "action" in st.query_params and st.query_params["action"] == "stop":
     st.session_state["cust_name"] = st.query_params.get("cname", "Khách vãng lai")
     st.session_state["cust_phone"] = st.query_params.get("cphone", "")
     st.session_state["trip_id"] = f"C4567_{int(start_ts)}"
-
+    st.session_state["payment_pending"] = True
+    st.session_state["payment_confirmed"] = False
+    st.session_state["payment_method"] = ""
+    st.session_state["saved_to_sheet"] = False
     st.query_params.clear()
     st.session_state["step"] = 3
     st.rerun()
@@ -420,6 +450,9 @@ if st.session_state["step"] == 2:
             st.session_state["cust_phone"] = cust_phone_in.strip()
             st.session_state["trip_id"] = f"C4567_{int(started_at)}"
             st.session_state["saved_to_sheet"] = False
+            st.session_state["payment_pending"] = False
+            st.session_state["payment_method"] = ""
+            st.session_state["payment_confirmed"] = False
 
             start_time_str = get_vn_time(started_at)
             stt_cache = get_next_stt("CACHE_4567")
@@ -648,9 +681,9 @@ if st.session_state["step"] == 2:
                 }}
             }} catch(err) {{}}
 
-            let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
+            let targetUrl = baseUrl + "?action=checkout&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
             
-            showToast("Đang xử lý thanh toán...", "#059669");
+            showToast("Đang chuyển sang xác nhận thanh toán...", "#059669");
             if (window.parent && window.parent.location) {{
                 window.parent.location.href = targetUrl;
             }} else {{
@@ -662,19 +695,18 @@ if st.session_state["step"] == 2:
         components.html(html_live_tracker, height=310)
 
 # ============================================================
-# CỬA SỔ 3: HÓA ĐƠN CHI TIẾT ĐỘC LẬP
+# CỬA SỔ 3: XÁC NHẬN THANH TOÁN + HÓA ĐƠN
 # ============================================================
 elif st.session_state["step"] == 3:
-    start_ts = st.session_state["trip_started_at"]
-    end_ts = st.session_state["final_end_ts"]
-    dist_val = st.session_state["final_dist"]
-    cname = st.session_state["cust_name"]
-    cphone = st.session_state["cust_phone"]
-    trip_id = st.session_state["trip_id"]
+    start_ts = st.session_state.get("trip_started_at") or time.time()
+    end_ts = st.session_state.get("final_end_ts") or time.time()
+    dist_val = max(0.0, float(st.session_state.get("final_dist", 0.0)))
+    cname = st.session_state.get("cust_name", "Khách vãng lai")
+    cphone = st.session_state.get("cust_phone", "")
+    trip_id = st.session_state.get("trip_id", "")
 
     start_time_str = get_vn_time(start_ts)
     end_time_str = get_vn_time(end_ts)
-    
     time_diff = max(0, int(end_ts - start_ts))
     hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
@@ -683,8 +715,68 @@ elif st.session_state["step"] == 3:
     fare_val = calculate_fare(km_val)
     driver_name_val = st.session_state.get('user_name', 'Tài xế')
     unit_desc = get_current_unit_price_desc(km_val)
-    
-    # Lưu vào Google Sheets an toàn: kiểm tra mã cuốc trước khi ghi để tránh trùng.
+
+    # ------------------------------------------------------------
+    # BƯỚC 1: XÁC NHẬN THANH TOÁN
+    # ------------------------------------------------------------
+    if st.session_state.get("payment_pending", False):
+        st.markdown(
+            f"""
+            <div class="pro-card" style="border: 2px solid #059669; background: linear-gradient(180deg,#ffffff 0%,#f0fdf4 100%);">
+                <div style="text-align:center;">
+                    <div style="font-size:38px;">💵</div>
+                    <div style="font-size:22px; font-weight:900; color:#064e3b;">XÁC NHẬN THANH TOÁN</div>
+                    <div style="font-size:13px; color:#64748b; font-weight:700; margin-top:3px;">Mã cuốc: {safe_html(trip_id)}</div>
+                </div>
+                <div style="margin-top:14px; background:#fff; border-radius:16px; padding:14px; border:1px solid #d1fae5;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="color:#64748b;">Khách hàng</span><b>{safe_html(cname)}</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="color:#64748b;">Quãng đường</span><b>{km_val:.2f} km</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span style="color:#64748b;">Thời gian</span><b>{total_time_str}</b></div>
+                </div>
+                <div style="text-align:center; margin-top:15px;">
+                    <div style="font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">SỐ TIỀN KHÁCH CẦN THANH TOÁN</div>
+                    <div style="font-size:40px; font-weight:900; color:#059669; margin-top:2px;">{format(fare_val, ',')} VNĐ</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        payment_method = st.radio(
+            "Chọn phương thức thanh toán:",
+            ["💵 TIỀN MẶT", "🏦 CHUYỂN KHOẢN"],
+            index=0,
+            key="payment_method_selector",
+        )
+        selected_method = "Tiền mặt" if payment_method.startswith("💵") else "Chuyển khoản"
+        st.session_state["payment_method"] = selected_method
+
+        st.markdown(
+            "<div style='font-size:13px; color:#475569; font-weight:700; margin:8px 2px 12px;'>"
+            "⚠️ Chỉ xác nhận sau khi bác đã thực nhận đủ tiền từ khách.</div>",
+            unsafe_allow_html=True,
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("↩️ QUAY LẠI", use_container_width=True):
+                # Giữ cuốc đang chạy để bác quay lại màn hình GPS nếu bấm nhầm.
+                st.session_state["payment_pending"] = False
+                st.session_state["step"] = 2
+                st.rerun()
+        with col2:
+            if st.button("✅ XÁC NHẬN ĐÃ NHẬN TIỀN", use_container_width=True):
+                st.session_state["payment_confirmed"] = True
+                st.session_state["payment_pending"] = False
+                st.rerun()
+
+        st.stop()
+
+    # ------------------------------------------------------------
+    # BƯỚC 2: GHI NHẬN GIAO DỊCH VÀ HIỂN THỊ HÓA ĐƠN
+    # ------------------------------------------------------------
+    payment_method = st.session_state.get("payment_method") or "Tiền mặt"
+
     if not st.session_state["saved_to_sheet"]:
         if trip_exists_in_sheet("DATA_4567", trip_id):
             save_ok = True
@@ -698,20 +790,34 @@ elif st.session_state["step"] == 3:
             save_ok = append_row_to_sheet("DATA_4567", row_data)
 
         if save_ok:
-            delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-            st.session_state["saved_to_sheet"] = True
+            # Phương thức thanh toán được ghi vào cột riêng; nếu chưa có cột, app tự tạo.
+            method_ok = set_payment_method_in_sheet("DATA_4567", trip_id, payment_method)
+            cache_deleted = delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
+            if method_ok and cache_deleted:
+                st.session_state["saved_to_sheet"] = True
+            elif method_ok and not cache_deleted:
+                # DATA đã tồn tại và phương thức đã được ghi; không coi việc xóa cache thất bại là mất giao dịch.
+                st.session_state["saved_to_sheet"] = True
+            else:
+                st.error("❌ Giao dịch đã tạo nhưng chưa ghi được phương thức thanh toán. Vui lòng kiểm tra Google Sheets.")
         else:
             st.error("❌ Chưa thể đồng bộ hóa đơn lên DATA_4567. Vui lòng giữ nguyên màn hình này và thử lại.")
 
-    # Nút bấm quay về màn hình nhận khách
+    if st.session_state["saved_to_sheet"]:
+        st.success(f"✅ Đã xác nhận thanh toán bằng **{payment_method}** và đồng bộ dữ liệu.")
+
+    # Nút quay về màn hình chính
     if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
         update_driver_status(st.session_state["user_phone"], "Trực tuyến")
         st.session_state["trip_active_state"] = False
         st.session_state["saved_to_sheet"] = False
+        st.session_state["payment_pending"] = False
+        st.session_state["payment_method"] = ""
+        st.session_state["payment_confirmed"] = False
         st.session_state["step"] = 2
         st.rerun()
 
-    # Escape dữ liệu người dùng trước khi đưa vào HTML.
+    # Hóa đơn
     cname_html_invoice = safe_html(cname)
     cphone_html_invoice = safe_html(cphone) if cphone else "Không có SĐT"
     trip_id_html = safe_html(trip_id)
@@ -720,8 +826,8 @@ elif st.session_state["step"] == 3:
     total_time_html = safe_html(total_time_str)
     unit_desc_html = safe_html(unit_desc)
     driver_name_html = safe_html(driver_name_val)
+    payment_method_html = safe_html(payment_method)
 
-    # Khung hóa đơn chi tiết
     invoice_html = f"""
     <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
         <div style="background: #ffffff; border-radius: 20px; padding: 18px 20px; border: 2px solid #059669; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 12px;">
@@ -730,38 +836,16 @@ elif st.session_state["step"] == 3:
                 <div style="font-size: 19px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
                 <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 2px;">Mã cuốc: {trip_id_html}</div>
             </div>
-            
             <div style="font-size: 14px; color: #334155; line-height: 1.7;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #64748b; font-weight: 600;">Khách hàng:</span>
-                    <span style="font-weight: 800; color: #0f172a; text-align: right;">{cname_html_invoice} ({cphone_html_invoice})</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #64748b; font-weight: 600;">Tài xế:</span>
-                    <span style="font-weight: 800; color: #0f172a;">{driver_name_html}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span>
-                    <span style="font-weight: 700; color: #0f172a;">{start_time_html}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span>
-                    <span style="font-weight: 700; color: #0f172a;">{end_time_html}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #64748b; font-weight: 600;">Thời gian đi:</span>
-                    <span style="font-weight: 700; color: #0f172a;">{total_time_html}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #64748b; font-weight: 600;">Quãng đường:</span>
-                    <span style="font-weight: 800; color: #059669;">{km_val} km</span>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #64748b; font-weight: 600;">Mức giá:</span>
-                    <span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc_html}</span>
-                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Khách hàng:</span><span style="font-weight: 800; color: #0f172a; text-align: right;">{cname_html_invoice} ({cphone_html_invoice})</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Tài xế:</span><span style="font-weight: 800; color: #0f172a;">{driver_name_html}</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span><span style="font-weight: 700; color: #0f172a;">{start_time_html}</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span><span style="font-weight: 700; color: #0f172a;">{end_time_html}</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Thời gian đi:</span><span style="font-weight: 700; color: #0f172a;">{total_time_html}</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Quãng đường:</span><span style="font-weight: 800; color: #059669;">{km_val:.2f} km</span></div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="color: #64748b; font-weight: 600;">Mức giá:</span><span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc_html}</span></div>
+                <div style="display: flex; justify-content: space-between;"><span style="color: #64748b; font-weight: 600;">Thanh toán:</span><span style="font-weight: 800; color: #059669;">{payment_method_html}</span></div>
             </div>
-            
             <div style="margin-top: 14px; padding-top: 12px; border-top: 2px dashed #cbd5e1; text-align: center;">
                 <div style="font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase;">Tổng thành tiền</div>
                 <div style="font-size: 36px; font-weight: 900; color: #059669; margin-top: 2px;">{format(fare_val, ',')} VNĐ</div>
@@ -770,4 +854,4 @@ elif st.session_state["step"] == 3:
         </div>
     </div>
     """
-    components.html(invoice_html, height=520)
+    components.html(invoice_html, height=560)
