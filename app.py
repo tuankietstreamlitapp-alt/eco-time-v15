@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.4 Pro)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v4.5 Pro)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -270,7 +270,6 @@ else:
     with col_logout:
         st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
         if st.button("🚪 Đăng xuất", use_container_width=True, help="Thoát tài khoản và về màn hình đăng nhập"):
-            # Reset toàn bộ session state để quay về màn hình đăng nhập sạch sẽ
             st.session_state["step"] = 1
             st.session_state["user_phone"] = ""
             st.session_state["user_name"] = ""
@@ -499,16 +498,21 @@ else:
                 localStorage.removeItem("xeom_v4_seconds");
 
                 let baseUrl = window.location.href.split('?')[0];
-                try {{
-                    if (window.parent && window.parent.location) {{
-                        baseUrl = window.parent.location.href.split('?')[0];
-                    }}
-                }} catch(err) {{}}
-
+                
+                // ĐÃ SỬA: Ép trang chính (window.parent) chuyển hướng thay vì tự load trong iframe gây chia đôi màn hình
                 let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
                 
                 showToast("Đang xử lý thanh toán...", "#059669");
-                window.open(targetUrl, '_self');
+                
+                try {{
+                    if (window.parent && window.parent.location) {{
+                        window.parent.location.href = targetUrl;
+                    }} else {{
+                        window.location.href = targetUrl;
+                    }}
+                }} catch(err) {{
+                    window.location.href = targetUrl;
+                }}
             }}
             </script>
             """
