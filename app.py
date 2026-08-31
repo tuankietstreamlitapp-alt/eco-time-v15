@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.8 Pro)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v4.3 Pro)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -127,8 +127,8 @@ st.markdown(
         margin-bottom: 14px; 
         box-shadow: 0 10px 20px rgba(5, 150, 105, 0.2); 
     }
-    .driver-name { font-size: 19px; font-weight: 800; margin: 0; color: white; letter-spacing: -0.3px; }
-    .driver-phone { font-size: 13px; margin-top: 3px; color: #d1fae5; font-weight: 600; }
+    .driver-name { font-size: 20px; font-weight: 800; margin: 0; color: white; letter-spacing: -0.3px; }
+    .driver-phone { font-size: 14px; margin-top: 4px; color: #d1fae5; font-weight: 600; }
     
     div.stButton > button { 
         border-radius: 16px !important; 
@@ -163,10 +163,10 @@ st.markdown(
 )
 
 # ============================================================
-# KHỞI TẠO SESSION STATE MẶC ĐỊNH
+# QUẢN LÝ TRẠNG THÁI 3 CỬA SỔ RIÊNG BIỆT
 # ============================================================
 if "step" not in st.session_state:
-    st.session_state["step"] = 1  # 1: Đăng nhập, 2: Đo GPS / Hành trình
+    st.session_state["step"] = 1  # 1: Đăng nhập, 2: Nhận khách & Đo GPS, 3: Hóa đơn chi tiết
 
 defaults = {
     "user_phone": "",
@@ -175,7 +175,10 @@ defaults = {
     "cust_phone": "",
     "trip_id": "",
     "trip_started_at": None,
+    "final_dist": 0.0,
+    "final_end_ts": None,
     "trip_active_state": False,
+    "saved_to_sheet": False
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -184,65 +187,31 @@ for key, value in defaults.items():
 GPS_ACCURACY_MAX_M = 50
 MIN_MOVE_M = 3
 
-# ============================================================
-# BẮT TÍN HIỆU ĐĂNG XUẤT & LƯU CUỐC XE TỪ JAVASCRIPT
-# ============================================================
-if "action" in st.query_params and st.query_params["action"] == "logout":
+# Bắt tín hiệu thanh toán từ JS đẩy qua query params
+if "action" in st.query_params and st.query_params["action"] == "stop":
     try:
-        final_dist = float(st.query_params.get("dist", 0.0))
+        st.session_state["final_dist"] = float(st.query_params.get("dist", 0.0))
     except (TypeError, ValueError):
-        final_dist = 0.0
+        st.session_state["final_dist"] = 0.0
 
     try:
         start_ts = float(st.query_params.get("start", time.time()))
     except (TypeError, ValueError):
         start_ts = time.time()
 
-    end_ts = time.time()
-    cname = st.query_params.get("cname", "Khách vãng lai")
-    cphone = st.query_params.get("cphone", "")
-    trip_id = f"C4567_{int(start_ts)}"
+    st.session_state["trip_started_at"] = start_ts
+    st.session_state["final_end_ts"] = time.time()
+    st.session_state["cust_name"] = st.query_params.get("cname", "Khách vãng lai")
+    st.session_state["cust_phone"] = st.query_params.get("cphone", "")
+    st.session_state["trip_id"] = f"C4567_{int(start_ts)}"
 
-    start_time_str = get_vn_time(start_ts)
-    end_time_str = get_vn_time(end_ts)
-    
-    time_diff = max(0, int(end_ts - start_ts))
-    hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
-    total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
-
-    km_val = round(final_dist / 1000.0, 2)
-    fare_val = calculate_fare(km_val)
-    driver_name_val = st.query_params.get("driver", "Tài xế")
-    unit_desc = get_current_unit_price_desc(km_val)
-
-    # Lưu thông tin chuyến đi vào Google Sheets (DATA_4567)
-    stt = get_next_stt("DATA_4567")
-    row_data = [
-        stt, trip_id, start_time_str, end_time_str, total_time_str,
-        cname, cphone, fare_val, driver_name_val,
-        unit_desc, km_val, fare_val, "ĐÃ HOÀN THÀNH & ĐĂNG XUẤT"
-    ]
-    append_row_to_sheet("DATA_4567", row_data)
-    delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
-
-    # Xóa sạch toàn bộ thông tin phiên làm việc và ép về màn hình đăng nhập (Bước 1)
-    st.session_state["step"] = 1
-    st.session_state["user_phone"] = ""
-    st.session_state["user_name"] = ""
-    st.session_state["cust_name"] = ""
-    st.session_state["cust_phone"] = ""
-    st.session_state["trip_id"] = ""
-    st.session_state["trip_started_at"] = None
-    st.session_state["trip_active_state"] = False
-    
     st.query_params.clear()
+    st.session_state["step"] = 3
     st.rerun()
 
 # ============================================================
-# ĐIỀU HƯỚNG CẤU TRÚC RẼ NHÁNH
+# CỬA SỔ 1: MÀN HÌNH ĐĂNG NHẬP
 # ============================================================
-
-# --- BƯỚC 1: MÀN HÌNH ĐĂNG NHẬP ---
 if st.session_state["step"] == 1:
     st.markdown(
         """
@@ -279,40 +248,30 @@ if st.session_state["step"] == 1:
                     st.rerun()
                 else:
                     st.error("❌ Số điện thoại không đúng hoặc chưa được cấp quyền!")
+    st.stop()
 
-# --- BƯỚC 2: KHU VỰC TÀI XẾ ĐÃ ĐĂNG NHẬP & ĐO GPS ---
-else:
-    # Header hiển thị thông tin tài xế kết hợp nút Đăng xuất nhanh khi chưa có cuốc xe
-    col_info, col_logout = st.columns([3, 1])
-    with col_info:
-        st.markdown(
-            f"""
-            <div class="driver-header" style="margin-bottom: 0px;">
-                <div class="driver-name">👨‍✈️ {st.session_state['user_name']}</div>
-                <div class="driver-phone">📞 {st.session_state['user_phone']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with col_logout:
-        st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
-        if not st.session_state["trip_active_state"]:
-            if st.button("🚪 Thoát", use_container_width=True, help="Đăng xuất tài khoản"):
-                st.session_state["step"] = 1
-                st.session_state["user_phone"] = ""
-                st.session_state["user_name"] = ""
-                st.rerun()
-        else:
-            st.markdown("<div style='text-align: center; font-size: 11px; color: #059669; font-weight: 700; margin-top: 12px;'>Đang chạy cuốc</div>", unsafe_allow_html=True)
+# ============================================================
+# HEADER CHUNG CHO CỬA SỔ 2 & 3
+# ============================================================
+st.markdown(
+    f"""
+    <div class="driver-header">
+        <div class="driver-name">👨‍✈️ Tài xế: {st.session_state['user_name']}</div>
+        <div class="driver-phone">📞 SĐT: {st.session_state['user_phone']}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-
-    # 1. Khởi tạo cuốc xe mới
+# ============================================================
+# CỬA SỔ 2: NHẬP KHÁCH & ĐO GPS HÀNH TRÌNH
+# ============================================================
+if st.session_state["step"] == 2:
     if not st.session_state["trip_active_state"]:
         st.markdown(
             """
             <div class="pro-card">
-                <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 10px;">📝 Khởi tạo cuốc xe mới</div>
+                <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 10px;">📝 Bước 1: Khởi tạo cuốc xe</div>
             """,
             unsafe_allow_html=True,
         )
@@ -338,7 +297,6 @@ else:
             append_row_to_sheet("CACHE_4567", cache_row)
             st.rerun()
     
-    # 2. Đang trong hành trình đo GPS
     else:
         st.markdown(
             f"""
@@ -353,7 +311,6 @@ else:
         current_start_ts = st.session_state.get('trip_started_at', time.time())
         cname_val = st.session_state.get('cust_name', 'Khách vãng lai')
         cphone_val = st.session_state.get('cust_phone', '')
-        driver_val = st.session_state.get('user_name', 'Tài xế')
         
         html_live_tracker = f"""
         <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
@@ -394,8 +351,8 @@ else:
                 <button id="btnPause" class="action-btn" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
                     ⏸ TẠM DỪNG
                 </button>
-                <button id="btnLogout" class="action-btn" onclick="handleLogout(event)" style="flex: 1.2; background: #dc2626; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);">
-                    🚪 ĐĂNG XUẤT
+                <button id="btnPay" class="action-btn" onclick="handlePayment(event)" style="flex: 1.2; background: #059669; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);">
+                    💵 THANH TOÁN
                 </button>
             </div>
             <div id="debug_acc" style="text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
@@ -408,7 +365,6 @@ else:
         let startTimestamp = {current_start_ts};
         let customerName = "{cname_val}";
         let customerPhone = "{cphone_val}";
-        let driverName = "{driver_val}";
 
         function vibrate(duration = 50) {{
             if (navigator.vibrate) {{ navigator.vibrate(duration); }}
@@ -519,26 +475,116 @@ else:
             );
         }}
 
-        function handleLogout(e) {{
+        function handlePayment(e) {{
             vibrate(90);
             localStorage.removeItem("xeom_v4_meters");
             localStorage.removeItem("xeom_v4_seconds");
 
             let baseUrl = window.location.href.split('?')[0];
-            let targetUrl = baseUrl + "?action=logout&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone) + "&driver=" + encodeURIComponent(driverName);
-            
-            showToast("Đang lưu cuốc xe & đăng xuất...", "#dc2626");
-            
             try {{
-                window.top.location.href = targetUrl;
-            }} catch(err) {{
-                try {{
-                    window.parent.location.href = targetUrl;
-                }} catch(err2) {{
-                    window.location.href = targetUrl;
+                if (window.parent && window.parent.location) {{
+                    baseUrl = window.parent.location.href.split('?')[0];
                 }}
-            }}
+            }} catch(err) {{}}
+
+            let targetUrl = baseUrl + "?action=stop&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
+            
+            showToast("Đang xử lý thanh toán...", "#059669");
+            window.open(targetUrl, '_self');
         }}
         </script>
         """
         components.html(html_live_tracker, height=310)
+
+# ============================================================
+# CỬA SỔ 3: HÓA ĐƠN CHI TIẾT ĐỘC LẬP
+# ============================================================
+elif st.session_state["step"] == 3:
+    start_ts = st.session_state["trip_started_at"]
+    end_ts = st.session_state["final_end_ts"]
+    dist_val = st.session_state["final_dist"]
+    cname = st.session_state["cust_name"]
+    cphone = st.session_state["cust_phone"]
+    trip_id = st.session_state["trip_id"]
+
+    start_time_str = get_vn_time(start_ts)
+    end_time_str = get_vn_time(end_ts)
+    
+    time_diff = max(0, int(end_ts - start_ts))
+    hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
+    total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
+
+    km_val = round(dist_val / 1000.0, 2)
+    fare_val = calculate_fare(km_val)
+    driver_name_val = st.session_state.get('user_name', 'Tài xế')
+    unit_desc = get_current_unit_price_desc(km_val)
+    
+    # Lưu vào Google Sheets chỉ 1 lần duy nhất
+    if not st.session_state["saved_to_sheet"]:
+        stt = get_next_stt("DATA_4567")
+        row_data = [
+            stt, trip_id, start_time_str, end_time_str, total_time_str,
+            cname, cphone, fare_val, driver_name_val,
+            unit_desc, km_val, fare_val, "ĐÃ THANH TOÁN"
+        ]
+        append_row_to_sheet("DATA_4567", row_data)
+        delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
+        st.session_state["saved_to_sheet"] = True
+
+    # Nút bấm quay về màn hình nhận khách
+    if st.button("⬅️ QUAY LẠI MÀN HÌNH CHÍNH", use_container_width=True):
+        st.session_state["trip_active_state"] = False
+        st.session_state["saved_to_sheet"] = False
+        st.session_state["step"] = 2
+        st.rerun()
+
+    # Khung hóa đơn chi tiết
+    invoice_html = f"""
+    <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2px;">
+        <div style="background: #ffffff; border-radius: 20px; padding: 18px 20px; border: 2px solid #059669; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 12px;">
+            <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 12px; margin-bottom: 12px;">
+                <div style="font-size: 32px;">🧾</div>
+                <div style="font-size: 19px; font-weight: 900; color: #064e3b; margin-top: 4px;">HÓA ĐƠN CHI TIẾT CHUYẾN ĐI</div>
+                <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 2px;">Mã cuốc: {trip_id}</div>
+            </div>
+            
+            <div style="font-size: 14px; color: #334155; line-height: 1.7;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Khách hàng:</span>
+                    <span style="font-weight: 800; color: #0f172a; text-align: right;">{cname} ({cphone if cphone else 'Không có SĐT'})</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Tài xế:</span>
+                    <span style="font-weight: 800; color: #0f172a;">{driver_name_val}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Giờ khởi hành:</span>
+                    <span style="font-weight: 700; color: #0f172a;">{start_time_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Giờ kết thúc:</span>
+                    <span style="font-weight: 700; color: #0f172a;">{end_time_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Thời gian đi:</span>
+                    <span style="font-weight: 700; color: #0f172a;">{total_time_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #64748b; font-weight: 600;">Quãng đường:</span>
+                    <span style="font-weight: 800; color: #059669;">{km_val} km</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #64748b; font-weight: 600;">Mức giá:</span>
+                    <span style="font-weight: 700; color: #d97706; font-size: 13px; text-align: right;">{unit_desc}</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 2px dashed #cbd5e1; text-align: center;">
+                <div style="font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase;">Tổng thành tiền</div>
+                <div style="font-size: 36px; font-weight: 900; color: #059669; margin-top: 2px;">{format(fare_val, ',')} VNĐ</div>
+                <div style="font-size: 11px; color: #10b981; font-weight: 700; margin-top: 2px;">✅ Đã thanh toán & đồng bộ lên Google Sheets</div>
+            </div>
+        </div>
+    </div>
+    """
+    components.html(invoice_html, height=520)
