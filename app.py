@@ -21,6 +21,7 @@ st.set_page_config(
 # 1. Thao tác đơn giản.
 # 2. Giao diện trực quan, ưu tiên người lớn tuổi.
 # 3. KM / GPS / THỜI GIAN / THÀNH TIỀN phải nhất quán và minh bạch.
+# 4. Luồng thanh toán chỉ trong một trang, không lồng Streamlit vào Streamlit.
 # ============================================================
 
 VN_TZ = pytz.timezone("Asia/Ho_Chi_Minh")
@@ -710,17 +711,29 @@ if st.session_state["step"] == 2:
             document.getElementById("gps").innerText = "❌ Thiết bị không hỗ trợ GPS.";
         }}
 
+        let paymentNavigating = false;
+
         function handlePayment() {{
+            if (paymentNavigating) return;
             vibrate(90);
             syncClock();
+            persist();
+            paymentNavigating = true;
 
-            // QUAN TRỌNG: điều hướng toàn bộ tab trình duyệt.
-            // Tuyệt đối không dùng window.parent để tránh sinh Streamlit bên trong Streamlit.
-            let baseUrl = "";
+            // Không đọc window.top.location và tuyệt đối không dùng window.location
+            // của iframe. document.referrer chính là URL trang Streamlit đã nhúng component.
+            // Ta chỉ điều hướng TOP window bằng URL của trang cha, vì vậy không sinh
+            // thêm một Streamlit App bên trong App chính.
+            let appUrl = "";
             try {{
-                baseUrl = window.top.location.href.split("?")[0].split("#")[0];
+                if (document.referrer) {{
+                    const ref = new URL(document.referrer);
+                    ref.search = "";
+                    ref.hash = "";
+                    appUrl = ref.toString();
+                }}
             }} catch (err) {{
-                baseUrl = window.location.href.split("?")[0].split("#")[0];
+                appUrl = "";
             }}
 
             const params = new URLSearchParams({{
@@ -733,17 +746,30 @@ if st.session_state["step"] == 2:
                 cphone: customerPhone
             }});
 
-            // Xóa trạng thái đã chốt khỏi bộ nhớ cục bộ sau khi lấy dữ liệu.
-            localStorage.removeItem(tripStorageKey + ":paused");
-            localStorage.removeItem(tripStorageKey + ":meters");
-            localStorage.removeItem(tripStorageKey + ":seconds");
-            localStorage.removeItem(tripStorageKey + ":gps");
-            localStorage.removeItem(tripStorageKey + ":clock");
-            localStorage.removeItem(tripStorageKey + ":lat");
-            localStorage.removeItem(tripStorageKey + ":lon");
+            // KHÔNG xóa localStorage ở bước này.
+            // Dữ liệu phải còn nguyên cho tới khi giao dịch được xác nhận và lưu thành công.
+            toast("Đang mở xác nhận thanh toán...", "#059669");
+            const payBtn = document.getElementById("payBtn");
+            if (payBtn) {{
+                payBtn.disabled = true;
+                payBtn.style.opacity = "0.7";
+                payBtn.innerText = "⏳ ĐANG MỞ THANH TOÁN...";
+            }}
 
-            toast("Đang chuyển sang xác nhận thanh toán...", "#059669");
-            window.top.location.assign(baseUrl + "?" + params.toString());
+            if (appUrl) {{
+                const target = appUrl + "?" + params.toString();
+                window.top.location.assign(target);
+            }} else {{
+                // document.referrer là nguồn an toàn nhất trong component.
+                // Nếu không có referrer, dừng thao tác thay vì điều hướng sai iframe.
+                paymentNavigating = false;
+                if (payBtn) {{
+                    payBtn.disabled = false;
+                    payBtn.style.opacity = "1";
+                    payBtn.innerText = "💵 THANH TOÁN";
+                }}
+                toast("⚠️ Không xác định được trang ứng dụng. Cuốc xe vẫn được giữ nguyên.", "#b91c1c");
+            }}
         }}
         </script>
         """
@@ -806,7 +832,7 @@ elif st.session_state["step"] == 3:
         st.session_state["payment_method"] = "Tiền mặt" if payment_method.startswith("💵") else "Chuyển khoản"
 
         if gps_points <= 0:
-            st.warning("⚠️ Chưa có điểm GPS hợp lệ. Chưa cho phép xác nhận để tránh tính sai quãng đường.")
+            st.warning("⚠️ Chưa có điểm GPS hợp lệ. Hãy kiểm tra định vị trước khi xác nhận thanh toán để tránh tính sai quãng đường.")
         else:
             st.info("ℹ️ Chỉ bấm xác nhận sau khi bác đã thực nhận đủ tiền từ khách.")
 
@@ -817,8 +843,7 @@ elif st.session_state["step"] == 3:
                 st.session_state["step"] = 2
                 st.rerun()
         with col2:
-            confirm_disabled = gps_points <= 0
-            if st.button("✅ XÁC NHẬN ĐÃ NHẬN TIỀN", use_container_width=True, disabled=confirm_disabled):
+            if st.button("✅ XÁC NHẬN ĐÃ NHẬN TIỀN", use_container_width=True):
                 st.session_state["payment_confirmed"] = True
                 st.session_state["payment_pending"] = False
                 st.rerun()
