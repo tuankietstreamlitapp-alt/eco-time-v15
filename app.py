@@ -288,6 +288,7 @@ st.markdown(
         transform: scale(0.97) translateY(0px) !important;
     }
 
+    .action-btn { font-family: inherit; }
     input { 
         font-size: 16px !important; 
         font-weight: 600 !important; 
@@ -314,6 +315,7 @@ defaults = {
     "trip_started_at": None,
     "final_dist": 0.0,
     "final_end_ts": None,
+    "final_elapsed": 0,
     "trip_active_state": False,
     "saved_to_sheet": False,
     "payment_pending": False,
@@ -339,8 +341,14 @@ if "action" in st.query_params and st.query_params["action"] in {"stop", "checko
     except (TypeError, ValueError):
         start_ts = time.time()
 
+    try:
+        elapsed_seconds = max(0, int(float(st.query_params.get("elapsed", 0))))
+    except (TypeError, ValueError):
+        elapsed_seconds = 0
+
     st.session_state["trip_started_at"] = start_ts
     st.session_state["final_end_ts"] = time.time()
+    st.session_state["final_elapsed"] = elapsed_seconds
     st.session_state["cust_name"] = st.query_params.get("cname", "Khách vãng lai")
     st.session_state["cust_phone"] = st.query_params.get("cphone", "")
     st.session_state["trip_id"] = f"C4567_{int(start_ts)}"
@@ -446,6 +454,7 @@ if st.session_state["step"] == 2:
             started_at = time.time()
             st.session_state["trip_active_state"] = True
             st.session_state["trip_started_at"] = started_at
+            st.session_state["final_elapsed"] = 0
             st.session_state["cust_name"] = cust_name_in.strip() if cust_name_in.strip() else "Khách vãng lai"
             st.session_state["cust_phone"] = cust_phone_in.strip()
             st.session_state["trip_id"] = f"C4567_{int(started_at)}"
@@ -533,9 +542,9 @@ if st.session_state["step"] == 2:
                 <button id="btnPause" class="action-btn" onclick="togglePause()" style="flex: 1; background: #d97706; color: white; box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3);">
                     ⏸ TẠM DỪNG
                 </button>
-                <button id="btnPay" class="action-btn" onclick="handlePayment(event)" style="flex: 1.2; background: #059669; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3);">
+                <a id="btnPay" class="action-btn" href="#" target="_top" style="flex: 1.2; background: #059669; color: white; font-size: 15px; box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3); text-decoration: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
                     💵 THANH TOÁN
-                </button>
+                </a>
             </div>
             <div id="debug_acc" style="text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">GPS: Đang bắt tín hiệu vệ tinh...</div>
         </div>
@@ -607,13 +616,39 @@ if st.session_state["step"] == 2:
             document.getElementById("rate_desc").innerText = "Đơn giá: " + getRateDescJS(km);
         }}
 
-        updateUI();
+        function getBaseUrl() {{
+            let baseUrl = window.location.href.split('?')[0];
+            try {{
+                if (window.top && window.top.location) {{
+                    baseUrl = window.top.location.href.split('?')[0];
+                }}
+            }} catch (err) {{}}
+            return baseUrl;
+        }}
 
-        // TẠM DỪNG chỉ dừng cộng GPS; đồng hồ vẫn chạy để khớp thời gian hóa đơn.
+        function updatePaymentLink() {{
+            const link = document.getElementById("btnPay");
+            if (!link) return;
+            const targetUrl = getBaseUrl()
+                + "?action=checkout&dist=" + encodeURIComponent(totalMeters)
+                + "&elapsed=" + encodeURIComponent(secondsElapsed)
+                + "&start=" + encodeURIComponent(startTimestamp)
+                + "&cname=" + encodeURIComponent(customerName)
+                + "&cphone=" + encodeURIComponent(customerPhone);
+            link.href = targetUrl;
+        }}
+
+        updateUI();
+        updatePaymentLink();
+
+        // TẠM DỪNG dừng cả đồng hồ và GPS; TIẾP TỤC mới chạy lại.
         setInterval(function() {{
-            secondsElapsed++;
-            localStorage.setItem(tripStorageKey + "_seconds", secondsElapsed);
-            updateUI();
+            if (!isPaused) {{
+                secondsElapsed++;
+                localStorage.setItem(tripStorageKey + "_seconds", secondsElapsed);
+                updateUI();
+                updatePaymentLink();
+            }}
         }}, 1000);
 
         function togglePause() {{
@@ -626,13 +661,15 @@ if st.session_state["step"] == 2:
                 btn.style.background = "#2563eb";
                 label.innerText = "⏸ ĐANG TẠM DỪNG GPS";
                 label.style.color = "#fbbf24";
-                showToast("⏸ Đã tạm dừng đo GPS.", "#d97706");
+                updatePaymentLink();
+                showToast("⏸ Đã tạm dừng: dừng cả đồng hồ và GPS.", "#d97706");
             }} else {{
                 btn.innerText = "⏸ TẠM DỪNG";
                 btn.style.background = "#d97706";
                 label.innerText = "🟢 ĐỒNG HỒ TÍNH CƯỚC THỜI GIAN THỰC";
                 label.style.color = "#34d399";
-                showToast("▶️ Tiếp tục hành trình.", "#059669");
+                updatePaymentLink();
+                showToast("▶️ Tiếp tục đồng hồ và GPS.", "#059669");
             }}
         }}
 
@@ -654,7 +691,10 @@ if st.session_state["step"] == 2:
                     let lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy;
                     document.getElementById("debug_acc").innerText = "Độ chính xác GPS: ±" + acc.toFixed(1) + "m";
                     
-                    if (acc > {GPS_ACCURACY_MAX_M}) return;
+                    if (acc > {GPS_ACCURACY_MAX_M}) {{
+                        document.getElementById("debug_acc").innerText = "GPS: tín hiệu yếu (±" + acc.toFixed(1) + "m), chưa cộng quãng đường";
+                        return;
+                    }}
                     if (lastLat === null) {{ lastLat = lat; lastLon = lon; return; }}
                     
                     if (!isPaused) {{
@@ -672,23 +712,21 @@ if st.session_state["step"] == 2:
             );
         }}
 
-        function handlePayment(e) {{
-            vibrate(90);
-            let baseUrl = window.location.href.split('?')[0];
-            try {{
-                if (window.parent && window.parent.location) {{
-                    baseUrl = window.parent.location.href.split('?')[0];
-                }}
-            }} catch(err) {{}}
-
-            let targetUrl = baseUrl + "?action=checkout&dist=" + totalMeters + "&start=" + startTimestamp + "&cname=" + encodeURIComponent(customerName) + "&cphone=" + encodeURIComponent(customerPhone);
-            
-            showToast("Đang chuyển sang xác nhận thanh toán...", "#059669");
-            if (window.parent && window.parent.location) {{
-                window.parent.location.href = targetUrl;
-            }} else {{
-                window.location.href = targetUrl;
-            }}
+        // Fallback cho một số trình duyệt chặn target="_top" trong iframe.
+        const paymentLink = document.getElementById("btnPay");
+        if (paymentLink) {{
+            paymentLink.addEventListener("click", function(e) {{
+                vibrate(90);
+                const targetUrl = paymentLink.href;
+                showToast("Đang chuyển sang xác nhận thanh toán...", "#059669");
+                setTimeout(function() {{
+                    try {{
+                        window.top.location.href = targetUrl;
+                    }} catch (err) {{
+                        window.location.href = targetUrl;
+                    }}
+                }}, 80);
+            }});
         }}
         </script>
         """
@@ -707,7 +745,10 @@ elif st.session_state["step"] == 3:
 
     start_time_str = get_vn_time(start_ts)
     end_time_str = get_vn_time(end_ts)
-    time_diff = max(0, int(end_ts - start_ts))
+    time_diff = max(0, int(st.session_state.get("final_elapsed", 0)))
+    if time_diff == 0 and end_ts and start_ts:
+        # Tương thích với các cuốc cũ nếu chưa truyền elapsed.
+        time_diff = max(0, int(end_ts - start_ts))
     hh, mm, ss = time_diff // 3600, (time_diff % 3600) // 60, time_diff % 60
     total_time_str = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
@@ -814,6 +855,7 @@ elif st.session_state["step"] == 3:
         st.session_state["payment_pending"] = False
         st.session_state["payment_method"] = ""
         st.session_state["payment_confirmed"] = False
+        st.session_state["final_elapsed"] = 0
         st.session_state["step"] = 2
         st.rerun()
 
