@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="4567 Xe Ôm — Tài Xế (v4.7 Pro)", page_icon="🛵", layout="centered"
+    page_title="4567 Xe Ôm — Tài Xế (v4.8 Pro)", page_icon="🛵", layout="centered"
 )
 
 # ============================================================
@@ -225,12 +225,17 @@ if "action" in st.query_params and st.query_params["action"] == "logout":
     append_row_to_sheet("DATA_4567", row_data)
     delete_row_from_sheet("CACHE_4567", "MÃ CUỐC XE", trip_id)
 
-    # Xóa sạch param và đưa về màn hình đăng nhập (Bước 1)
-    st.query_params.clear()
+    # Xóa sạch toàn bộ thông tin phiên làm việc và ép về màn hình đăng nhập (Bước 1)
     st.session_state["step"] = 1
     st.session_state["user_phone"] = ""
     st.session_state["user_name"] = ""
+    st.session_state["cust_name"] = ""
+    st.session_state["cust_phone"] = ""
+    st.session_state["trip_id"] = ""
+    st.session_state["trip_started_at"] = None
     st.session_state["trip_active_state"] = False
+    
+    st.query_params.clear()
     st.rerun()
 
 # ============================================================
@@ -298,7 +303,6 @@ else:
                 st.session_state["user_name"] = ""
                 st.rerun()
         else:
-            # Khi đang trong cuốc xe, nút Đăng xuất chính đã được chuyển xuống dưới màn hình theo yêu cầu
             st.markdown("<div style='text-align: center; font-size: 11px; color: #059669; font-weight: 700; margin-top: 12px;'>Đang chạy cuốc</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
@@ -334,7 +338,7 @@ else:
             append_row_to_sheet("CACHE_4567", cache_row)
             st.rerun()
     
-    # 2. Đang trong hành trình đo GPS (Hiển thị đồng hồ trực tiếp và nút Đăng xuất thay thế nút Thanh toán)
+    # 2. Đang trong hành trình đo GPS
     else:
         st.markdown(
             f"""
@@ -526,13 +530,13 @@ else:
             showToast("Đang lưu cuốc xe & đăng xuất...", "#dc2626");
             
             try {{
-                if (window.parent && window.parent.location) {{
+                window.top.location.href = targetUrl;
+            }} catch(err) {{
+                try {{
                     window.parent.location.href = targetUrl;
-                }} else {{
+                }} catch(err2) {{
                     window.location.href = targetUrl;
                 }}
-            }} catch(err) {{
-                window.location.href = targetUrl;
             }}
         }}
         </script>
