@@ -1,4 +1,3 @@
-```kotlin
 package vn.xeom4567.gps
 
 import kotlin.math.*
